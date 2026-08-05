@@ -21,10 +21,13 @@ const transaction: Transaction = {
 
 describe("TransactionRow", () => {
   it("uses the category as primary text when title is empty", () => {
-    render(<MemoryRouter><TransactionRow transaction={transaction} /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <TransactionRow transaction={transaction} />
+      </MemoryRouter>,
+    );
     expect(screen.getByText("飲食")).toBeInTheDocument();
     expect(screen.queryByText("Untitled")).not.toBeInTheDocument();
     expect(screen.getByLabelText("已附上輸入位置")).toBeInTheDocument();
   });
 });
-
