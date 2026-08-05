@@ -42,6 +42,17 @@ func Handler() http.Handler {
 		if clean == "." {
 			clean = "/"
 		}
+		if clean == "/manifest.webmanifest" {
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Content-Type", "application/manifest+json")
+			files.ServeHTTP(w, r)
+			return
+		}
+		if clean == "/sw.js" || clean == "/registerSW.js" {
+			w.Header().Set("Cache-Control", "no-cache")
+			files.ServeHTTP(w, r)
+			return
+		}
 		if strings.HasPrefix(clean, "/assets/") {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			files.ServeHTTP(w, r)
