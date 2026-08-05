@@ -1,0 +1,10 @@
+.DS_Store
+.env
+/simfiment
+/data/
+/internal/static/dist/assets/
+/web/node_modules/
+/web/coverage/
+/web/playwright-report/
+/web/test-results/
+/.playwright-cli/

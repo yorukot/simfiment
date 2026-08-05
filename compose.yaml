@@ -1,0 +1,21 @@
+services:
+  simfiment:
+    build:
+      context: .
+      args:
+        VERSION: 0.1.0
+    restart: unless-stopped
+    read_only: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SIMFIMENT_BASE_URL: ${SIMFIMENT_BASE_URL:-http://localhost:8080}
+      SIMFIMENT_SECURE_COOKIES: ${SIMFIMENT_SECURE_COOKIES:-false}
+      SIMFIMENT_DEVELOPMENT: ${SIMFIMENT_DEVELOPMENT:-true}
+    volumes:
+      - simfiment-data:/data
+    tmpfs:
+      - /tmp
+
+volumes:
+  simfiment-data:
