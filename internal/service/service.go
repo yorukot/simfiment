@@ -6,12 +6,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
-	"sync"
 	"time"
 
 	"simfiment/internal/database"
@@ -28,8 +24,6 @@ type Service struct {
 	cfg            platform.Config
 	passwordParams passwordParameters
 	limiter        *loginLimiter
-	setupCodeMu    sync.RWMutex
-	setupCode      string
 }
 
 // New creates the application service layer.
@@ -46,7 +40,6 @@ func New(db *sql.DB, cfg platform.Config, clock platform.Clock) *Service {
 
 // SetupInput contains one-time initialization choices.
 type SetupInput struct {
-	SetupCode               string `json:"setupCode"`
 	Password                string `json:"password"`
 	Timezone                string `json:"timezone"`
 	Locale                  string `json:"locale"`
@@ -62,42 +55,6 @@ type SessionResult struct {
 	Settings  domain.Settings
 }
 
-// EnsureSetupCode loads or creates the protected one-time setup secret.
-func (s *Service) EnsureSetupCode(ctx context.Context) (string, error) {
-	initialized, err := s.store.Initialized(ctx)
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(s.cfg.DataDir, "setup-code")
-	if initialized {
-		_ = os.Remove(path)
-		return "", nil
-	}
-	s.setupCodeMu.Lock()
-	defer s.setupCodeMu.Unlock()
-	if s.setupCode != "" {
-		return s.setupCode, nil
-	}
-	if value, err := os.ReadFile(path); err == nil {
-		if err := os.Chmod(path, 0o600); err != nil {
-			return "", fmt.Errorf("secure setup code: %w", err)
-		}
-		s.setupCode = string(value)
-		return "", nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("read setup code: %w", err)
-	}
-	value, err := randomToken(18)
-	if err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
-		return "", fmt.Errorf("write setup code: %w", err)
-	}
-	s.setupCode = value
-	return value, nil
-}
-
 // Initialized reports installation state.
 func (s *Service) Initialized(ctx context.Context) (bool, error) {
 	return s.store.Initialized(ctx)
@@ -111,12 +68,6 @@ func (s *Service) Setup(ctx context.Context, input SetupInput) (SessionResult, e
 	}
 	if initialized {
 		return SessionResult{}, domain.NewError(http.StatusConflict, "already_initialized", "此應用程式已完成設定。")
-	}
-	s.setupCodeMu.RLock()
-	expectedCode := s.setupCode
-	s.setupCodeMu.RUnlock()
-	if expectedCode == "" || subtleString(input.SetupCode, expectedCode) == false {
-		return SessionResult{}, domain.NewError(http.StatusUnauthorized, "invalid_setup_code", "一次性設定碼不正確。")
 	}
 	settings, fieldErrors := validateSetup(input)
 	if err := validatePassword(input.Password); err != nil {
@@ -149,10 +100,6 @@ func (s *Service) Setup(ctx context.Context, input SetupInput) (SessionResult, e
 		return SessionResult{}, internal("initialize application", err)
 	}
 	settings.InitializedAt = &now
-	_ = os.Remove(filepath.Join(s.cfg.DataDir, "setup-code"))
-	s.setupCodeMu.Lock()
-	s.setupCode = ""
-	s.setupCodeMu.Unlock()
 	return SessionResult{Token: token, CSRFToken: csrf, Settings: settings, Session: store.Session{
 		ID: sessionID, PasswordVersion: 1, CreatedAt: now, LastSeenAt: now, ExpiresAt: expires,
 	}}, nil
@@ -349,10 +296,6 @@ func newSessionSecrets() (string, []byte, string, []byte, error) {
 	tokenHash := sha256.Sum256([]byte(token))
 	csrfHash := sha256.Sum256([]byte(csrf))
 	return token, tokenHash[:], csrf, csrfHash[:], nil
-}
-
-func subtleString(left, right string) bool {
-	return subtleBytes([]byte(left), []byte(right))
 }
 
 func subtleBytes(left, right []byte) bool {

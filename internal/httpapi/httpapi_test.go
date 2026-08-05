@@ -33,12 +33,7 @@ func newTestHandler(t *testing.T) (http.Handler, platform.Config, service.Sessio
 		t.Fatal(err)
 	}
 	svc := service.New(db, cfg, platform.RealClock{})
-	code, err := svc.EnsureSetupCode(context.Background())
-	if err != nil {
-		db.Close()
-		t.Fatal(err)
-	}
-	session, err := svc.Setup(context.Background(), service.SetupInput{SetupCode: code,
+	session, err := svc.Setup(context.Background(), service.SetupInput{
 		Password: "a sufficiently long password", Timezone: "Asia/Taipei", Locale: "zh-TW", CurrencyCode: "TWD"})
 	if err != nil {
 		db.Close()
@@ -184,7 +179,7 @@ func TestSetupCannotRepeatAndLoginRateLimitActivates(t *testing.T) {
 	handler, cfg, _, closeDB := newTestHandler(t)
 	defer closeDB()
 
-	setup := httptest.NewRequest(http.MethodPost, "/api/v1/setup", strings.NewReader(`{"setupCode":"unused","password":"a sufficiently long password","timezone":"Asia/Taipei","locale":"zh-TW","currencyCode":"TWD"}`))
+	setup := httptest.NewRequest(http.MethodPost, "/api/v1/setup", strings.NewReader(`{"password":"a sufficiently long password","timezone":"Asia/Taipei","locale":"zh-TW","currencyCode":"TWD"}`))
 	setup.Header.Set("Content-Type", "application/json")
 	setup.Header.Set("Origin", cfg.BaseURL)
 	setupResponse := httptest.NewRecorder()

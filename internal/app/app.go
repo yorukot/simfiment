@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -139,14 +138,6 @@ func serve(cfg platform.Config, db *sql.DB, svc *service.Service, logger *slog.L
 		if err := staticfiles.Validate(); err != nil {
 			return err
 		}
-	}
-	setupCode, err := svc.EnsureSetupCode(context.Background())
-	if err != nil {
-		return err
-	}
-	if setupCode != "" {
-		logger.Warn("installation requires setup", "setup_code", setupCode,
-			"setup_file", filepath.Join(cfg.DataDir, "setup-code"))
 	}
 	handler := httpapi.New(svc, db, cfg, logger, Version, staticfiles.Handler())
 	server := &http.Server{Addr: cfg.Addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second,

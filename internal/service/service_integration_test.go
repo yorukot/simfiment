@@ -25,12 +25,7 @@ func newTestService(t *testing.T, now time.Time) (*Service, func()) {
 	cfg := platform.Config{DataDir: dir, BaseURL: "http://example.test", SessionDays: 30,
 		Argon2MemoryKiB: 19_456, Argon2Iterations: 2, Argon2Parallelism: 1}
 	svc := New(db, cfg, fixedClock{now: now})
-	code, err := svc.EnsureSetupCode(context.Background())
-	if err != nil {
-		db.Close()
-		t.Fatal(err)
-	}
-	_, err = svc.Setup(context.Background(), SetupInput{SetupCode: code,
+	_, err = svc.Setup(context.Background(), SetupInput{
 		Password: "a sufficiently long password", Timezone: "Asia/Taipei", Locale: "zh-TW", CurrencyCode: "TWD"})
 	if err != nil {
 		db.Close()
