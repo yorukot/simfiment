@@ -1,48 +1,85 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import styles from "../../styles/ui.module.css";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { Toast } from "@base-ui/react/toast";
+import { Icon } from "../ui";
+import styles from "./ToastProvider.module.css";
 
 type ToastInput = {
   message: string;
+  tone?: "neutral" | "success" | "error";
   actionLabel?: string;
   onAction?: () => void | Promise<void>;
 };
 
+type ToastData = Pick<ToastInput, "actionLabel" | "onAction">;
 type ToastContextValue = { showToast: (toast: ToastInput) => void };
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<(ToastInput & { id: number }) | null>(null);
-  const showToast = useCallback((input: ToastInput) => {
-    const next = { ...input, id: Date.now() };
-    setToast(next);
-    window.setTimeout(() => setToast((current) => (current?.id === next.id ? null : current)), 6500);
-  }, []);
-  const value = useMemo(() => ({ showToast }), [showToast]);
   return (
-    <ToastContext.Provider value={value}>
-      {children}
-      <div className={styles.toastRegion} aria-live="polite" aria-atomic="true">
-        {toast ? (
-          <div className={styles.toast} role="status">
-            <span>{toast.message}</span>
-            {toast.actionLabel ? (
-              <button
-                className={styles.toastAction}
-                type="button"
-                onClick={() => {
-                  void toast.onAction?.();
-                  setToast(null);
-                }}
-              >
-                {toast.actionLabel}
-              </button>
-            ) : null}
-            <button className={styles.toastClose} type="button" aria-label="關閉通知" onClick={() => setToast(null)}>×</button>
-          </div>
-        ) : null}
-      </div>
-    </ToastContext.Provider>
+    <Toast.Provider timeout={6500} limit={3}>
+      <ToastBridge>{children}</ToastBridge>
+      <Toast.Portal>
+        <Toast.Viewport className={styles.viewport}>
+          <ToastList />
+        </Toast.Viewport>
+      </Toast.Portal>
+    </Toast.Provider>
   );
+}
+
+function ToastBridge({ children }: { children: ReactNode }) {
+  const manager = Toast.useToastManager();
+  const showToast = useCallback(
+    (input: ToastInput) => {
+      manager.add({
+        description: input.message,
+        type: input.tone ?? "neutral",
+        data: { actionLabel: input.actionLabel, onAction: input.onAction } satisfies ToastData,
+      });
+    },
+    [manager],
+  );
+  const value = useMemo(() => ({ showToast }), [showToast]);
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
+}
+
+function ToastList() {
+  const manager = Toast.useToastManager<ToastData>();
+  return manager.toasts.map((toast) => (
+    <Toast.Root
+      key={toast.id}
+      toast={toast}
+      className={styles.toast}
+      swipeDirection={["down", "right"]}
+      aria-label="通知"
+    >
+      <Toast.Content className={styles.content}>
+        <span className={styles.toneIcon} aria-hidden="true">
+          <Icon
+            name={toast.type === "error" ? "error" : toast.type === "success" ? "check" : "info"}
+            size={20}
+          />
+        </span>
+        <Toast.Description className={styles.description} />
+        {toast.data?.actionLabel ? (
+          <button
+            className={styles.action}
+            type="button"
+            data-base-ui-swipe-ignore
+            onClick={() => {
+              void toast.data?.onAction?.();
+              manager.close(toast.id);
+            }}
+          >
+            {toast.data.actionLabel}
+          </button>
+        ) : null}
+        <Toast.Close className={styles.close} aria-label="關閉通知">
+          <Icon name="close" size={20} />
+        </Toast.Close>
+      </Toast.Content>
+    </Toast.Root>
+  ));
 }
 
 export function useToast() {
@@ -50,4 +87,3 @@ export function useToast() {
   if (!value) throw new Error("useToast must be used inside ToastProvider");
   return value;
 }
-
