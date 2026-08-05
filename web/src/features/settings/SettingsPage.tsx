@@ -14,8 +14,8 @@ import {
   CheckboxField,
   Chip,
   Icon,
+  IconPickerField,
   SegmentedControl,
-  SelectField,
   SwitchField,
   TextField,
   type IconName,
@@ -23,7 +23,7 @@ import {
 import styles from "../../styles/ui.module.css";
 
 const iconOptions = [
-  ["", "無圖示"],
+  ["", "預設圖示"],
   ["food", "飲食"],
   ["transport", "交通"],
   ["shopping", "購物"],
@@ -478,7 +478,11 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
     [next[index], next[target]] = [next[target]!, next[index]!];
     reorder.mutate(next);
   }
-  const options = iconOptions.map(([value, label]) => ({ value, label }));
+  const options = iconOptions.map(([value, label]) => ({
+    value,
+    label,
+    icon: <CategoryIcon iconKey={value} width={24} height={24} />,
+  }));
   return (
     <section className={styles.section}>
       <div className={styles.sectionTitle}>
@@ -497,9 +501,8 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
             </div>
             {!item.archivedAt ? (
               <div className={styles.categoryIconSelect}>
-                <SelectField
+                <IconPickerField
                   hideLabel
-                  compact
                   label={`${item.name} 圖示`}
                   value={item.iconKey}
                   onValueChange={(nextIcon) => action.mutate({ item, action: "update", nextIcon })}
@@ -559,7 +562,14 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
           maxLength={30}
           placeholder="輸入分類名稱"
         />
-        <SelectField label="圖示" value={iconKey} onValueChange={setIconKey} options={options} />
+        <IconPickerField
+          className={styles.categoryComposerIcon}
+          label="圖示"
+          accessibleLabel={`新增${title}圖示`}
+          value={iconKey}
+          onValueChange={setIconKey}
+          options={options}
+        />
         <Button
           variant="tonal"
           type="button"

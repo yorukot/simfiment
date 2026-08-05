@@ -15,7 +15,21 @@ async function expectAccessible(page: Page) {
 async function openEntry(page: Page) {
   await page.getByRole("button", { name: "記錄交易" }).last().click();
   await expect(page.getByRole("heading", { name: "記錄交易" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: /金額/ })).toBeFocused();
+  const amountInput = page.getByRole("textbox", { name: /金額/ });
+  await expect(amountInput).toBeFocused();
+  const focusLayout = await amountInput.evaluate((input) => {
+    const inputRect = input.getBoundingClientRect();
+    const groupRect = input.parentElement!.getBoundingClientRect();
+    return {
+      contained:
+        inputRect.left >= groupRect.left &&
+        inputRect.top >= groupRect.top &&
+        inputRect.right <= groupRect.right &&
+        inputRect.bottom <= groupRect.bottom,
+      outlineStyle: getComputedStyle(input).outlineStyle,
+    };
+  });
+  expect(focusLayout).toEqual({ contained: true, outlineStyle: "none" });
 }
 
 async function selectOption(page: Page, label: string, option: string) {
@@ -202,6 +216,23 @@ test("fresh-install finance workflow", async ({ page }) => {
 
   await page.getByRole("link", { name: /設定/ }).click();
   await expectAccessible(page);
+  await page.getByRole("link", { name: "分類", exact: true }).click();
+  const newExpenseIcon = page.getByRole("button", {
+    name: "新增支出分類圖示：預設圖示",
+  });
+  await newExpenseIcon.click();
+  const iconMenu = page.getByRole("menu", { name: "新增支出分類圖示" });
+  const iconChoices = iconMenu.getByRole("menuitemradio");
+  await expect(iconChoices).toHaveCount(19);
+  const iconGrid = iconChoices.first().locator("..");
+  await expect(iconGrid).toHaveCSS("display", "grid");
+  expect(
+    await iconGrid.evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length),
+  ).toBe(5);
+  expect(await iconChoices.allTextContents()).toEqual(Array.from({ length: 19 }, () => ""));
+  await iconMenu.getByRole("menuitemradio", { name: "健康" }).click();
+  await expect(page.getByRole("button", { name: "新增支出分類圖示：健康" })).toBeVisible();
+  await page.getByRole("link", { name: "一般", exact: true }).click();
   await page.getByRole("button", { name: "深色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.waitForTimeout(250);

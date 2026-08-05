@@ -227,8 +227,9 @@
   font-weight: 650;
 }
 .numberInput {
-  width: 100%;
+  width: 0;
   min-width: 0;
+  flex: 1 1 0;
   height: 50px;
   border: 0;
   outline: 0;
@@ -236,6 +237,9 @@
   color: inherit;
   padding-inline: 10px;
   font-variant-numeric: tabular-nums;
+}
+.numberInput:focus-visible {
+  outline: 0;
 }
 .amount .numberGroup {
   min-height: 68px;
@@ -306,6 +310,84 @@
 .selectIndicator {
   display: grid;
   place-items: center;
+}
+
+.iconPickerTrigger {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: 24px 18px;
+  place-content: center;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  padding: 8px 10px;
+}
+.iconPickerTrigger:hover {
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 4%,
+    var(--md-sys-color-surface-container-highest)
+  );
+}
+.iconPickerPopup {
+  width: min(292px, calc(100vw - 16px));
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  padding: 10px;
+  box-shadow: var(--md-sys-elevation-3);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--md-sys-motion-duration-short),
+    transform var(--md-sys-motion-duration-short);
+}
+.iconPickerPopup[data-starting-style],
+.iconPickerPopup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+.iconPickerGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
+  gap: 6px;
+}
+.iconPickerItem {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  cursor: default;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--md-sys-shape-corner-small);
+  outline: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.iconPickerItem[data-highlighted] {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+  color: var(--md-sys-color-on-surface);
+}
+.iconPickerItem[data-checked] {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.iconPickerIndicator {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
 }
 
 .segmented {

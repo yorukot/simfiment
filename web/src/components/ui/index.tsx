@@ -189,6 +189,73 @@ export function NumericField({
 
 export type SelectOption = { value: string; label: string };
 
+export type IconPickerOption = { value: string; label: string; icon: ReactNode };
+
+export function IconPickerField({
+  label,
+  accessibleLabel = label,
+  value,
+  onValueChange,
+  options,
+  disabled,
+  hideLabel,
+  className,
+}: {
+  label: string;
+  accessibleLabel?: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: IconPickerOption[];
+  disabled?: boolean;
+  hideLabel?: boolean;
+  className?: string;
+}) {
+  const selected = options.find((option) => option.value === value) ?? options[0];
+  return (
+    <div className={cx(styles.field, className)}>
+      <span className={cx(styles.fieldLabel, hideLabel && styles.visuallyHidden)}>{label}</span>
+      <Menu.Root>
+        <Menu.Trigger
+          className={styles.iconPickerTrigger}
+          aria-label={`${accessibleLabel}：${selected?.label ?? "請選擇"}`}
+          disabled={disabled}
+        >
+          {selected?.icon}
+          <Icon name="chevronDown" size={18} />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner className={styles.menuPositioner} sideOffset={6} align="start">
+            <Menu.Popup className={styles.iconPickerPopup} aria-label={accessibleLabel}>
+              <Menu.RadioGroup
+                className={styles.iconPickerGrid}
+                value={value}
+                onValueChange={(next) => onValueChange(String(next))}
+                disabled={disabled}
+              >
+                {options.map((option) => (
+                  <Menu.RadioItem
+                    key={option.value || "default"}
+                    className={styles.iconPickerItem}
+                    value={option.value}
+                    label={option.label}
+                    aria-label={option.label}
+                    closeOnClick
+                  >
+                    {option.icon}
+                    <Menu.RadioItemIndicator className={styles.iconPickerIndicator}>
+                      <Icon name="check" size={12} />
+                    </Menu.RadioItemIndicator>
+                  </Menu.RadioItem>
+                ))}
+              </Menu.RadioGroup>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+    </div>
+  );
+}
+
 export function SelectField({
   label,
   value,

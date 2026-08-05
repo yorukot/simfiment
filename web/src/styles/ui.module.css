@@ -985,7 +985,7 @@
   color: var(--text-muted);
 }
 .categoryIconSelect {
-  width: 152px;
+  width: 64px;
 }
 .categoryIconSelect button {
   min-height: 44px;
@@ -995,10 +995,13 @@
 }
 .categoryComposer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 160px auto;
+  grid-template-columns: minmax(0, 1fr) 64px auto;
   align-items: end;
   gap: 10px;
   margin-top: 14px;
+}
+.categoryComposerIcon {
+  width: 64px;
 }
 .segmented {
   display: flex;
@@ -1123,11 +1126,14 @@
     flex: 1 1 calc(100% - 112px);
   }
   .categoryIconSelect {
-    width: calc(100% - 56px);
-    margin-left: 52px;
+    width: 56px;
+    margin-left: auto;
   }
   .categoryComposer {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .categoryComposer > :first-child {
+    grid-column: 1 / -1;
   }
 }
 
