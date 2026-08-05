@@ -935,15 +935,15 @@ Income      +NT$ 5,000
 Expense     −NT$   480
 Net         +NT$ 4,520
 
-Top expenses
-Food        NT$ 440
-Transport   NT$  40
-
 Transactions
 12:31  Beef noodles    Food        −NT$ 180
 15:20  MRT             Transport   −NT$  40
 18:00  Contract work   Freelance   +NT$ 5,000
 20:10  Dinner          Food        −NT$ 260
+
+Expense distribution
+Food        NT$ 440   92%  █████████
+Transport   NT$  40    8%  █
 
 [Record transaction]
 ```
@@ -1044,9 +1044,9 @@ Expense     −NT$ 18,420
 Net         +NT$ 23,580
 
 Expense by category
-Food         NT$ 6,240  █████████
-Home         NT$ 5,000  ███████
-Transport    NT$ 2,180  ███
+Food         NT$ 6,240  47%  █████
+Home         NT$ 5,000  37%  ████
+Transport    NT$ 2,180  16%  ██
 
 Daily activity
 Aug 1         Income 0      Expense 320
@@ -1083,6 +1083,9 @@ type MonthlyDashboard = {
 ## 11.4 Visualization rules
 
 - Category comparison should use horizontal bars.
+- Category bars represent the category's share of the same-kind total for the selected period.
+- Category rows show the exact amount and a whole-number percentage; non-zero shares below one percent display as `<1%`.
+- Category bars do not use a full-width progress track because they do not represent a budget or completion state.
 - Do not use a pie chart as the primary category visualization.
 - Charts must have textual values.
 - Charts must not rely on color alone.
@@ -2720,7 +2723,6 @@ Request:
 
 ```json
 {
-  "setupCode": "one-time-code",
   "password": "a sufficiently long password",
   "timezone": "Asia/Taipei",
   "locale": "zh-TW",
@@ -3315,7 +3317,6 @@ Domain-specific codes:
 invalid_credentials
 not_initialized
 already_initialized
-invalid_setup_code
 category_kind_mismatch
 category_in_use
 category_name_conflict

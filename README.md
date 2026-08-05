@@ -6,7 +6,7 @@ Simfiment（Simple Financial Management）是單一使用者、行動優先的�
 
 ## 已實作的 MVP
 
-- 一次性設定碼、Argon2id 密碼與伺服器端不透明 Session
+- Argon2id 密碼與伺服器端不透明 Session
 - Session 綁定 CSRF、Origin 驗證、登入限流與安全標頭
 - 支出／收入分類新增、重新命名、排序、封存與還原
 - 金額＋分類即可儲存的快速交易輸入，選填標題與穩定冪等鍵
@@ -14,30 +14,36 @@ Simfiment（Simple Financial Management）是單一使用者、行動優先的�
 - 非阻塞瀏覽器位置擷取、延遲附加、失敗狀態、五分鐘內重試與移除
 - 錨點式週／月／年週期規則、快照、確認、調整並確認、略過與 30 日預覽
 - SQLite migration、健康檢查、線上備份、離線還原、doctor 與密碼復原 CLI
-- 響應式繁體中文介面、深色主題、鍵盤操作與可讀的圖表替代內容
+- 可安裝 PWA、響應式繁體中文介面、深色主題、鍵盤操作與可讀的圖表替代內容
 
 ## 本機開發
 
-需求：Go 1.26.5、Node.js 22.22.2。
+需求：Go 1.26.5、Node.js 22.22.2、pnpm 10.30.3。
 
 ```bash
 cd web
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 cd ..
 go run ./cmd/simfiment serve
 ```
 
-預設網址是 `http://localhost:8080`，資料位於 `./data`。首次啟動會在伺服器輸出顯示一次性設定碼，並以 `0600` 寫入 `data/setup-code`；若錯過輸出，可由主機檔案系統讀取該檔案。
+預設網址是 `http://localhost:8080`，資料位於 `./data`。首次啟動直接開啟網址，在設定頁輸入你要使用的密碼即可完成初始化。
 
 前後端分離開發時，先執行 Go 服務，再於另一個終端執行：
 
 ```bash
 cd web
-npm run dev
+pnpm run dev
 ```
 
 Vite 會將 `/api` 與 `/health` 代理到 `localhost:8080`，瀏覽器仍以同源方式工作。
+
+## 安裝成 App
+
+完成前端建置後，Simfiment 會提供 Web App Manifest、一般／maskable 圖示與 Service Worker。Android Chrome 可由瀏覽器選單選擇「安裝應用程式」，iPhone／iPad Safari 則由分享選單選擇「加入主畫面」。
+
+除 `localhost` 開發環境外，PWA 安裝與 Service Worker 需要 HTTPS。Service Worker 只預先快取應用程式殼層、樣式、程式碼與圖示；`/api` 帳本資料、登入回應及位置資料不會寫入 Cache Storage，因此離線時可啟動 App 並看到連線提示，但讀寫帳本仍需要連回 Simfiment 伺服器。
 
 ## 檢查與建置
 
@@ -49,7 +55,7 @@ make e2e
 ./simfiment version
 ```
 
-`make e2e` 會啟動隔離的本機資料目錄並以 Playwright 執行新安裝、交易、分類、位置成功／拒絕、月報、週期確認／略過、改密碼與重新登入流程，同時對主要頁面執行 axe 掃描。首次在 CI 或沒有 Chrome/Chromium 的環境執行前，先於 `web` 目錄執行 `npx playwright install chromium`。
+`make e2e` 會啟動隔離的本機資料目錄並以 Playwright 執行新安裝、交易、分類、位置成功／拒絕、月報、週期確認／略過、改密碼與重新登入流程，同時對主要頁面執行 axe 掃描。首次在 CI 或沒有 Chrome/Chromium 的環境執行前，先於 `web` 目錄執行 `pnpm exec playwright install chromium`。
 
 ## 操作命令
 
