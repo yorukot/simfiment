@@ -4,6 +4,7 @@
 /data/
 /internal/static/dist/assets/
 /web/node_modules/
+/.pnpm-store/
 /web/coverage/
 /web/playwright-report/
 /web/test-results/

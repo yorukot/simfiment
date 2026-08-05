@@ -1,5 +1,10 @@
 export function todayInTimezone(timezone: string): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export function monthInTimezone(timezone: string): string {
@@ -19,11 +24,21 @@ export function addMonths(month: string, amount: number): string {
 }
 
 export function formatDate(date: string): string {
-  return new Intl.DateTimeFormat("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
 }
 
 export function formatMonth(month: string): string {
-  return new Intl.DateTimeFormat("zh-TW", { year: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${month}-01T12:00:00Z`));
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${month}-01T12:00:00Z`));
 }
 
 export function localDateTimeInput(date = new Date()): string {
@@ -49,15 +64,26 @@ export function zonedLocalToISO(value: string, timezone: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match) throw new Error("日期與時間格式無效。");
   const [, year, month, day, hour, minute] = match;
-  const wallClockUTC = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+  const wallClockUTC = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+  );
   let instant = wallClockUTC;
   for (let iteration = 0; iteration < 2; iteration += 1) {
-    const zoneName = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      timeZoneName: "longOffset",
-    }).formatToParts(new Date(instant)).find((part) => part.type === "timeZoneName")?.value ?? "GMT+00:00";
+    const zoneName =
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        timeZoneName: "longOffset",
+      })
+        .formatToParts(new Date(instant))
+        .find((part) => part.type === "timeZoneName")?.value ?? "GMT+00:00";
     const offset = /GMT([+-])(\d{2}):(\d{2})/.exec(zoneName);
-    const minutes = offset ? (offset[1] === "+" ? 1 : -1) * (Number(offset[2]) * 60 + Number(offset[3])) : 0;
+    const minutes = offset
+      ? (offset[1] === "+" ? 1 : -1) * (Number(offset[2]) * 60 + Number(offset[3]))
+      : 0;
     instant = wallClockUTC - minutes * 60_000;
   }
   return new Date(instant).toISOString();

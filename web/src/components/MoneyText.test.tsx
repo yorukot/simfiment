@@ -10,4 +10,3 @@ describe("MoneyText", () => {
     expect(screen.getByText(/−.*1,200/)).toBeInTheDocument();
   });
 });
-

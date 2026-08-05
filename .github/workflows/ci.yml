@@ -17,22 +17,26 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.3"
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22.22.2"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
         working-directory: web
-      - run: npm audit --omit=dev --audit-level=critical
+      - run: pnpm audit --prod --audit-level=critical
         working-directory: web
-      - run: npm test
+      - run: pnpm test
         working-directory: web
-      - run: npm run build
+      - run: pnpm run build
         working-directory: web
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium
         working-directory: web
-      - run: npm run test:e2e
+      - run: pnpm run test:e2e
         working-directory: web
       - run: go test ./...
       - run: go vet ./...
