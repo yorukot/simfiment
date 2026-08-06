@@ -7,7 +7,7 @@
 > **Status:** Draft approved for MVP implementation  
 > **Version:** 0.1  
 > **Date:** 2026-08-05  
-> **Primary language of the product:** Traditional Chinese (`zh-TW`)  
+> **Default language of the product:** Traditional Chinese (`zh-TW`), with English (`en`) also supported
 > **Default installation timezone:** `Asia/Taipei`  
 > **Default installation currency:** `TWD`
 
@@ -131,7 +131,7 @@ The following decisions are confirmed for the MVP.
 | Multi-user support | Not included |
 | Multiple accounts | Not included |
 | Budgets | Not included |
-| Multi-currency | Not included |
+| Mixed currencies within one ledger | Not included |
 | Bank integration | Not included |
 | OCR or receipt scanning | Not included |
 | Reverse geocoding | Not included |
@@ -139,7 +139,7 @@ The following decisions are confirmed for the MVP.
 
 ## 3.1 Installation-level assumptions
 
-The MVP supports one configured currency per installation.
+The application supports one configurable currency per installation. Setup and Settings use the server-owned supported-currency catalog; individual transactions cannot override it.
 
 Default values:
 
@@ -150,7 +150,7 @@ Timezone: Asia/Taipei
 Locale: zh-TW
 ```
 
-The schema stores the currency code on financial records so that a future migration remains possible, but the UI must not allow mixing currencies in the MVP.
+The schema stores the currency code on every financial record. Changing the installation currency atomically reinterprets every stored financial amount and code so aggregation never mixes currencies.
 
 ---
 
@@ -610,11 +610,11 @@ Do not automatically select a category. Accidental classification is worse than 
 
 ## 8.4 Amount input
 
-MVP behavior:
+Behavior:
 
 - Use a native numeric input optimized for mobile.
 - Set the appropriate `inputmode`.
-- For TWD, accept whole numbers only.
+- Accept exactly the configured currency exponent: 0, 2, or 3 decimal places.
 - Ignore grouping separators while editing.
 - Display formatted amount after blur where practical.
 - Reject zero.
@@ -1150,7 +1150,7 @@ Suggested income defaults:
 - Refund
 - Other
 
-The production UI should use localized Traditional Chinese labels, while the database stores the user-created display name.
+The production UI supports Traditional Chinese and English system labels, while the database stores the user-created display name. User-created names are never translated when the interface locale changes.
 
 ## 12.3 Create category
 
@@ -2114,7 +2114,9 @@ Rules:
 - API date-only values use `YYYY-MM-DD`.
 - API month values use `YYYY-MM`.
 - Stored amount remains integer minor units.
-- UI formats based on installation locale and currency.
+- UI formats based on the active interface locale and installation currency.
+- The web interface locale is a per-browser preference supporting `zh-TW` and `en`; it follows the browser language on first use and is then stored locally.
+- API errors honor `Accept-Language` and fall back to `zh-TW`.
 - Frontend must not perform financial aggregation as the source of truth.
 
 ## 18.9 Form validation
@@ -2170,6 +2172,13 @@ Examples for TWD:
 ```text
 NT$ 180     → 180
 NT$ 12,050  → 12050
+```
+
+Examples for other exponents:
+
+```text
+USD 12.34   → 1234
+KWD 12.345  → 12345
 ```
 
 Domain type:
@@ -2710,7 +2719,12 @@ Response:
     "name": "Simfiment",
     "version": "0.1.0",
     "initialized": false,
-    "defaultLocale": "zh-TW"
+    "defaultLocale": "zh-TW",
+    "currencies": [
+      { "code": "TWD", "exponent": 0 },
+      { "code": "USD", "exponent": 2 },
+      { "code": "KWD", "exponent": 3 }
+    ]
   }
 }
 ```
@@ -2836,6 +2850,15 @@ Request example:
 }
 ```
 
+Currency change example:
+
+```json
+{
+  "currencyCode": "USD",
+  "confirmCurrencyChange": true
+}
+```
+
 Timezone behavior is fixed as follows:
 
 - Timezone is configured during setup.
@@ -2845,6 +2868,14 @@ Timezone behavior is fixed as follows:
 - The UI explains that historical day/month grouping remains unchanged unless a transaction is edited.
 
 Document this clearly in the UI.
+
+Currency behavior is fixed as follows:
+
+- Setup and Settings accept only a code returned by `GET /api/v1/meta`; the server derives the exponent.
+- A later change requires an explicit confirmation dialog and never applies an exchange rate.
+- The major-unit number is preserved. Increasing the exponent multiplies stored minor units; decreasing it truncates extra digits without rounding.
+- Transactions, soft-deleted rows, recurring rules, and occurrence snapshots are rewritten atomically with their currency codes.
+- The entire change is rejected if any amount would truncate to zero or exceed the maximum.
 
 ## 21.7 Category endpoints
 

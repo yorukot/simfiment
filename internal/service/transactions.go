@@ -60,6 +60,12 @@ type TransactionFilters struct {
 	Cursor     string
 }
 
+// TransactionExportData contains active transactions and the installed currency precision.
+type TransactionExportData struct {
+	Transactions     []domain.Transaction
+	CurrencyExponent int
+}
+
 // CreateTransaction validates and atomically creates an idempotent manual transaction.
 func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput) (domain.Transaction, error) {
 	settings, err := s.store.GetSettings(ctx)
@@ -260,6 +266,21 @@ func (s *Service) ListTransactions(ctx context.Context, filters TransactionFilte
 		items = items[:filters.Limit]
 	}
 	return items, next, nil
+}
+
+// ExportTransactions returns every active transaction for a user-requested data export.
+func (s *Service) ExportTransactions(ctx context.Context) (TransactionExportData, error) {
+	now := s.clock.Now()
+	_ = s.store.ExpirePendingLocations(ctx, now.Add(-5*time.Minute), now)
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil {
+		return TransactionExportData{}, internal("load export settings", err)
+	}
+	items, err := s.store.ListTransactionsForExport(ctx)
+	if err != nil {
+		return TransactionExportData{}, internal("export transactions", err)
+	}
+	return TransactionExportData{Transactions: items, CurrencyExponent: settings.CurrencyExponent}, nil
 }
 
 // UpdateTransaction validates and updates a transaction.

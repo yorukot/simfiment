@@ -141,5 +141,5 @@ func (a *API) skipOccurrence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) apiNotFound(w http.ResponseWriter, r *http.Request) {
-	a.writeAPIError(w, http.StatusNotFound, "not_found", "找不到 API 路徑。", nil, requestIDFrom(r.Context()))
+	a.writeAPIError(w, r, http.StatusNotFound, "not_found", "找不到 API 路徑。", nil, requestIDFrom(r.Context()))
 }

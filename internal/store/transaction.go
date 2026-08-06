@@ -155,6 +155,29 @@ func (s *Store) ListTransactions(ctx context.Context, filters TransactionFilters
 	return items, nil
 }
 
+// ListTransactionsForExport returns every active transaction in chronological order.
+func (s *Store) ListTransactionsForExport(ctx context.Context) ([]domain.Transaction, error) {
+	rows, err := s.q.QueryContext(ctx, transactionSelect+`
+		WHERE t.deleted_at IS NULL
+		ORDER BY t.occurred_at_utc_ms ASC, t.id ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list transactions for export: %w", err)
+	}
+	defer rows.Close()
+	items := make([]domain.Transaction, 0)
+	for rows.Next() {
+		item, err := scanTransaction(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate transactions for export: %w", err)
+	}
+	return items, nil
+}
+
 // UpdateTransaction changes editable transaction fields.
 func (s *Store) UpdateTransaction(ctx context.Context, id int64, kind string, amount int64, categoryID int64, title string, occurredAt time.Time, localDate, timezone string, now time.Time) error {
 	_, err := s.q.ExecContext(ctx, `UPDATE transactions SET kind = ?, amount_minor = ?, category_id = ?,

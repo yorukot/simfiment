@@ -82,6 +82,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expectAccessible(page);
   await page.getByLabel(/^密碼/).fill(originalPassword);
   await page.getByLabel("確認密碼").fill(originalPassword);
+  await expect(page.getByRole("button", { name: "帳本幣別" })).toContainText("TWD");
   await page.getByRole("button", { name: "完成設定" }).click();
   await expect(page.getByRole("heading", { name: /年.*月.*日/ })).toBeVisible();
 
@@ -223,22 +224,56 @@ test("fresh-install finance workflow", async ({ page }) => {
     name: "新增支出分類圖示：預設圖示",
   });
   await newExpenseIcon.click();
-  const iconMenu = page.getByRole("menu", { name: "新增支出分類圖示" });
-  const iconChoices = iconMenu.getByRole("menuitemradio");
-  await expect(iconChoices).toHaveCount(19);
+  const iconMenu = page.getByRole("dialog", { name: "新增支出分類圖示" });
+  const iconChoices = iconMenu.locator("button[aria-pressed]");
+  await expect(iconChoices).toHaveCount(120);
   const iconGrid = iconChoices.first().locator("..");
   await expect(iconGrid).toHaveCSS("display", "grid");
   expect(
     await iconGrid.evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length),
   ).toBe(5);
-  expect(await iconChoices.allTextContents()).toEqual(Array.from({ length: 19 }, () => ""));
-  await iconMenu.getByRole("menuitemradio", { name: "健康" }).click();
+  await expect(iconChoices.first().locator('[aria-hidden="true"]').first()).toBeVisible();
+  await iconMenu.getByRole("searchbox", { name: "搜尋圖示" }).fill("健康");
+  await iconMenu.getByRole("button", { name: "健康", exact: true }).click();
   await expect(page.getByRole("button", { name: "新增支出分類圖示：健康" })).toBeVisible();
   await page.getByRole("link", { name: "一般", exact: true }).click();
   await page.getByRole("button", { name: "深色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.waitForTimeout(250);
   await expectAccessible(page);
+
+  const currencyPicker = page.getByRole("button", { name: "帳本幣別" });
+  await currencyPicker.click();
+  await page.getByRole("searchbox", { name: "搜尋幣別" }).fill("USD");
+  await page.getByRole("option", { name: /USD/ }).click();
+  await page.getByRole("button", { name: "變更幣別" }).click();
+  let currencyDialog = page.getByRole("dialog", { name: "確認變更整本帳的幣別" });
+  await expect(currencyDialog.getByText(/不會依匯率換算/)).toBeVisible();
+  await currencyDialog.getByRole("checkbox", { name: "我了解這會更新所有歷史與週期資料" }).check();
+  await currencyDialog.getByRole("button", { name: "確認變更幣別" }).click();
+  await expect(currencyPicker).toContainText("USD");
+
+  await page.getByRole("link", { name: /今天/ }).click();
+  await saveTransaction(page, {
+    amount: "12.34",
+    category: "飲食",
+    title: "E2E 小數幣別",
+  });
+  await expect(page.getByRole("link", { name: /E2E 小數幣別.*US\$12\.34/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /設定/ }).click();
+  await page.getByRole("button", { name: "帳本幣別" }).click();
+  await page.getByRole("searchbox", { name: "搜尋幣別" }).fill("JPY");
+  await page.getByRole("option", { name: /JPY/ }).click();
+  await page.getByRole("button", { name: "變更幣別" }).click();
+  currencyDialog = page.getByRole("dialog", { name: "確認變更整本帳的幣別" });
+  await expect(currencyDialog.getByText(/直接截斷.*USD 12\.34 → JPY 12/)).toBeVisible();
+  await currencyDialog.getByRole("checkbox", { name: "我了解這會更新所有歷史與週期資料" }).check();
+  await currencyDialog.getByRole("button", { name: "確認變更幣別" }).click();
+  await expect(page.getByRole("button", { name: "帳本幣別" })).toContainText("JPY");
+  await page.getByRole("link", { name: /今天/ }).click();
+  await expect(page.getByRole("link", { name: /E2E 小數幣別.*¥12/ })).toBeVisible();
+  await page.getByRole("link", { name: /設定/ }).click();
   await page.getByRole("link", { name: "安全" }).click();
   await page.getByLabel("目前密碼").fill(originalPassword);
   await page.getByLabel(/^新密碼/).fill(replacementPassword);
@@ -272,4 +307,24 @@ test("fresh-install finance workflow", async ({ page }) => {
     scroll: document.documentElement.scrollWidth,
   }));
   expect(viewport.scroll).toBeLessThanOrEqual(viewport.client);
+
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: /設定/ }).click();
+  await page.getByRole("button", { name: "English" }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "General", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("simfiment.locale"))).toBe("en");
+  await page.getByRole("link", { name: "Today", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Transactions" })).toBeVisible();
+  await page.getByRole("button", { name: "Record transaction" }).last().click();
+  await expect(page.getByRole("heading", { name: "Record transaction" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save expense" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expectAccessible(page);
 });

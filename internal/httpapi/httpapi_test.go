@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -19,7 +20,9 @@ import (
 type testEnvelope struct {
 	Data  json.RawMessage `json:"data"`
 	Error struct {
-		Code string `json:"code"`
+		Code    string            `json:"code"`
+		Message string            `json:"message"`
+		Fields  map[string]string `json:"fields"`
 	} `json:"error"`
 }
 
@@ -118,6 +121,60 @@ func TestAPINotFoundNeverReturnsSPA(t *testing.T) {
 	}
 }
 
+func TestMetaExposesCurrencyCatalog(t *testing.T) {
+	handler, _, _, closeDB := newTestHandler(t)
+	defer closeDB()
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/meta", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("meta status = %d: %s", response.Code, response.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			Currencies []struct {
+				Code     string `json:"code"`
+				Exponent int    `json:"exponent"`
+			} `json:"currencies"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if len(envelope.Data.Currencies) != 50 || envelope.Data.Currencies[0].Code != "TWD" ||
+		envelope.Data.Currencies[0].Exponent != 0 {
+		t.Fatalf("currencies = %#v", envelope.Data.Currencies)
+	}
+}
+
+func TestEnglishAPIErrors(t *testing.T) {
+	handler, cfg, initial, closeDB := newTestHandler(t)
+	defer closeDB()
+
+	request := authenticatedJSONRequest(http.MethodPost, "/api/v1/transactions",
+		[]byte(`{"clientRequestId":"request-invalid-amount-en","kind":"expense","amountMinor":0,"categoryId":1,"title":"","occurredAt":"2026-08-05T02:00:00+08:00","locationIntent":"none"}`),
+		&http.Cookie{Name: "simfiment_session", Value: initial.Token}, initial.CSRFToken, cfg.BaseURL)
+	request.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var envelope testEnvelope
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Error.Message != "Some fields are invalid." ||
+		envelope.Error.Fields["amountMinor"] != "The amount must be greater than zero and within the limit." {
+		t.Fatalf("localized error = %#v", envelope.Error)
+	}
+	if got := response.Header().Get("Content-Language"); got != "en" {
+		t.Fatalf("Content-Language = %q", got)
+	}
+	if got := response.Header().Get("Vary"); !strings.Contains(got, "Accept-Language") {
+		t.Fatalf("Vary = %q", got)
+	}
+}
+
 func TestTransactionValidationLimitsAndIdempotency(t *testing.T) {
 	handler, cfg, initial, closeDB := newTestHandler(t)
 	defer closeDB()
@@ -171,6 +228,74 @@ func TestTransactionValidationLimitsAndIdempotency(t *testing.T) {
 			firstID = envelope.Data["id"].(float64)
 		} else if envelope.Data["id"] != firstID {
 			t.Fatalf("duplicate returned id %v, want %v", envelope.Data["id"], firstID)
+		}
+	}
+}
+
+func TestTransactionCSVExport(t *testing.T) {
+	handler, cfg, initial, closeDB := newTestHandler(t)
+	defer closeDB()
+	cookie := &http.Cookie{Name: "simfiment_session", Value: initial.Token}
+
+	create := authenticatedJSONRequest(http.MethodPost, "/api/v1/transactions", []byte(
+		`{"clientRequestId":"csv-export-request-0001","kind":"expense","amountMinor":99,"categoryId":1,"title":"=SUM(1,2)","occurredAt":"2026-08-05T14:30:00+08:00","locationIntent":"none"}`,
+	), cookie, initial.CSRFToken, cfg.BaseURL)
+	created := httptest.NewRecorder()
+	handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status = %d: %s", created.Code, created.Body.String())
+	}
+
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/v1/transactions/export.csv", nil))
+	if unauthenticated.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated export status = %d", unauthenticated.Code)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/export.csv", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("export status = %d: %s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Type"); got != "text/csv; charset=utf-8" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if got := response.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment; filename=\"simfiment-transactions-") || !strings.HasSuffix(got, ".csv\"") {
+		t.Fatalf("Content-Disposition = %q", got)
+	}
+	body := response.Body.Bytes()
+	if !bytes.HasPrefix(body, []byte("\xEF\xBB\xBF")) {
+		t.Fatal("export is missing the UTF-8 BOM")
+	}
+	records, err := csv.NewReader(bytes.NewReader(body[3:])).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || len(records[0]) != len(transactionCSVHeader) {
+		t.Fatalf("export records = %#v", records)
+	}
+	if records[0][0] != "id" || records[1][1] != "2026-08-05T14:30:00+08:00" ||
+		records[1][4] != "99" || records[1][7] != "'=SUM(1,2)" {
+		t.Fatalf("unexpected export row = %#v", records[1])
+	}
+}
+
+func TestFormatMinorAmount(t *testing.T) {
+	tests := []struct {
+		amount   int64
+		exponent int
+		want     string
+	}{
+		{amount: 99, exponent: 0, want: "99"},
+		{amount: 99, exponent: 2, want: "0.99"},
+		{amount: 1234, exponent: 2, want: "12.34"},
+		{amount: 1, exponent: 3, want: "0.001"},
+	}
+	for _, test := range tests {
+		if got := formatMinorAmount(test.amount, test.exponent); got != test.want {
+			t.Errorf("formatMinorAmount(%d, %d) = %q, want %q", test.amount, test.exponent, got, test.want)
 		}
 	}
 }

@@ -1,31 +1,34 @@
 import type { ReactNode } from "react";
 import { errorMessage } from "../api/client";
 import { Button, Icon } from "./ui";
+import { useI18n } from "../i18n";
 import styles from "../styles/ui.module.css";
 
 export function PageLoading() {
+  const { messages } = useI18n();
   return (
-    <div className={styles.loadingStack} role="status" aria-label="載入中">
+    <div className={styles.loadingStack} role="status" aria-label={messages.states.loading}>
       <span />
       <span />
       <span />
-      <span className={styles.srOnly}>載入中</span>
+      <span className={styles.srOnly}>{messages.states.loading}</span>
     </div>
   );
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const { messages } = useI18n();
   const requestId =
     typeof error === "object" && error && "requestId" in error ? String(error.requestId) : "";
   return (
     <section className={styles.stateCard} role="alert">
-      <h2>目前無法載入</h2>
+      <h2>{messages.states.loadFailed}</h2>
       <p>{errorMessage(error)}</p>
-      {requestId ? <small>請求編號：{requestId}</small> : null}
+      {requestId ? <small>{messages.states.requestId(requestId)}</small> : null}
       {onRetry ? (
         <Button variant="outlined" type="button" onClick={onRetry}>
           <Icon name="sync" size={18} />
-          再試一次
+          {messages.states.retry}
         </Button>
       ) : null}
     </section>

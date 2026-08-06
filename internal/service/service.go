@@ -12,6 +12,7 @@ import (
 
 	"simfiment/internal/database"
 	"simfiment/internal/domain"
+	"simfiment/internal/i18n"
 	"simfiment/internal/platform"
 	"simfiment/internal/store"
 )
@@ -265,13 +266,14 @@ func validateSetup(input SetupInput) (domain.Settings, map[string]string) {
 	if _, err := time.LoadLocation(input.Timezone); err != nil {
 		errorsByField["timezone"] = "請選擇有效的 IANA 時區。"
 	}
-	if input.Locale != "zh-TW" {
-		errorsByField["locale"] = "MVP 僅支援繁體中文（zh-TW）。"
+	if !i18n.Supported(input.Locale) {
+		errorsByField["locale"] = "語系必須是 zh-TW 或 en。"
 	}
-	if input.CurrencyCode != "TWD" {
-		errorsByField["currencyCode"] = "MVP 僅支援 TWD。"
+	currency, supported := domain.Currency(input.CurrencyCode)
+	if !supported {
+		errorsByField["currencyCode"] = "請選擇支援的幣別。"
 	}
-	return domain.Settings{CurrencyCode: input.CurrencyCode, CurrencyExponent: 0,
+	return domain.Settings{CurrencyCode: currency.Code, CurrencyExponent: currency.Exponent,
 		Timezone: input.Timezone, Locale: input.Locale, Theme: "system",
 		AutomaticLocationEnable: input.AutomaticLocationEnable}, errorsByField
 }

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { Toast } from "@base-ui/react/toast";
 import { Icon } from "../ui";
+import { useI18n } from "../../i18n";
 import styles from "./ToastProvider.module.css";
 
 type ToastInput = {
@@ -44,6 +45,7 @@ function ToastBridge({ children }: { children: ReactNode }) {
 }
 
 function ToastList() {
+  const { messages } = useI18n();
   const manager = Toast.useToastManager<ToastData>();
   return manager.toasts.map((toast) => (
     <Toast.Root
@@ -51,7 +53,7 @@ function ToastList() {
       toast={toast}
       className={styles.toast}
       swipeDirection={["down", "right"]}
-      aria-label="通知"
+      aria-label={messages.toast.notification}
     >
       <Toast.Content className={styles.content}>
         <span className={styles.toneIcon} aria-hidden="true">
@@ -74,7 +76,7 @@ function ToastList() {
             {toast.data.actionLabel}
           </button>
         ) : null}
-        <Toast.Close className={styles.close} aria-label="關閉通知">
+        <Toast.Close className={styles.close} aria-label={messages.toast.closeNotification}>
           <Icon name="close" size={20} />
         </Toast.Close>
       </Toast.Content>

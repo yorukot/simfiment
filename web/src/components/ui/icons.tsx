@@ -16,6 +16,7 @@ import Close from "@material-symbols/svg-400/rounded/close.svg";
 import DarkMode from "@material-symbols/svg-400/rounded/dark_mode.svg";
 import Delete from "@material-symbols/svg-400/rounded/delete.svg";
 import Devices from "@material-symbols/svg-400/rounded/devices.svg";
+import Download from "@material-symbols/svg-400/rounded/download.svg";
 import Edit from "@material-symbols/svg-400/rounded/edit.svg";
 import ErrorIcon from "@material-symbols/svg-400/rounded/error.svg";
 import Flight from "@material-symbols/svg-400/rounded/flight.svg";
@@ -66,6 +67,7 @@ const iconComponents = {
   darkMode: DarkMode,
   delete: Delete,
   devices: Devices,
+  download: Download,
   edit: Edit,
   error: ErrorIcon,
   flight: Flight,
@@ -174,28 +176,90 @@ export type CategoryIconChoice = {
   value: string;
   label: string;
   keywords?: string;
+  translationKey?: CategoryIconTranslationKey;
 };
 
+export type CategoryIconTranslationKey =
+  | "default"
+  | "food"
+  | "transport"
+  | "shopping"
+  | "home"
+  | "entertainment"
+  | "health"
+  | "education"
+  | "subscription"
+  | "salary"
+  | "bonus"
+  | "freelance"
+  | "interest"
+  | "refund"
+  | "gift"
+  | "travel"
+  | "pets"
+  | "utilities"
+  | "other";
+
 const preferredCategoryIconChoices = [
-  { value: "", label: "預設圖示", keywords: "default category" },
-  { value: "food", label: "飲食", keywords: "food meal restaurant" },
-  { value: "transport", label: "交通", keywords: "transport bus car transit" },
-  { value: "shopping", label: "購物", keywords: "shopping bag store" },
-  { value: "home", label: "居家", keywords: "home house" },
-  { value: "entertainment", label: "娛樂", keywords: "entertainment movie" },
-  { value: "health", label: "健康", keywords: "health medical safety" },
-  { value: "education", label: "教育", keywords: "education school" },
-  { value: "subscription", label: "訂閱", keywords: "subscription recurring" },
-  { value: "salary", label: "薪資", keywords: "salary paid money" },
-  { value: "bonus", label: "獎金", keywords: "bonus reward" },
-  { value: "freelance", label: "接案", keywords: "freelance work" },
-  { value: "interest", label: "利息", keywords: "interest savings" },
-  { value: "refund", label: "退款", keywords: "refund undo return" },
-  { value: "gift", label: "禮物", keywords: "gift redeem present" },
-  { value: "travel", label: "旅行", keywords: "travel flight trip" },
-  { value: "pets", label: "寵物", keywords: "pets animal" },
-  { value: "utilities", label: "水電瓦斯", keywords: "utilities power bolt" },
-  { value: "other", label: "其他", keywords: "other category" },
+  { value: "", label: "default icon", translationKey: "default", keywords: "default category" },
+  { value: "food", label: "food", translationKey: "food", keywords: "food meal restaurant" },
+  {
+    value: "transport",
+    label: "transport",
+    translationKey: "transport",
+    keywords: "transport bus car transit",
+  },
+  {
+    value: "shopping",
+    label: "shopping",
+    translationKey: "shopping",
+    keywords: "shopping bag store",
+  },
+  { value: "home", label: "home", translationKey: "home", keywords: "home house" },
+  {
+    value: "entertainment",
+    label: "entertainment",
+    translationKey: "entertainment",
+    keywords: "entertainment movie",
+  },
+  { value: "health", label: "health", translationKey: "health", keywords: "health medical safety" },
+  {
+    value: "education",
+    label: "education",
+    translationKey: "education",
+    keywords: "education school",
+  },
+  {
+    value: "subscription",
+    label: "subscription",
+    translationKey: "subscription",
+    keywords: "subscription recurring",
+  },
+  { value: "salary", label: "salary", translationKey: "salary", keywords: "salary paid money" },
+  { value: "bonus", label: "bonus", translationKey: "bonus", keywords: "bonus reward" },
+  {
+    value: "freelance",
+    label: "freelance",
+    translationKey: "freelance",
+    keywords: "freelance work",
+  },
+  {
+    value: "interest",
+    label: "interest",
+    translationKey: "interest",
+    keywords: "interest savings",
+  },
+  { value: "refund", label: "refund", translationKey: "refund", keywords: "refund undo return" },
+  { value: "gift", label: "gift", translationKey: "gift", keywords: "gift redeem present" },
+  { value: "travel", label: "travel", translationKey: "travel", keywords: "travel flight trip" },
+  { value: "pets", label: "pets", translationKey: "pets", keywords: "pets animal" },
+  {
+    value: "utilities",
+    label: "utilities",
+    translationKey: "utilities",
+    keywords: "utilities power bolt",
+  },
+  { value: "other", label: "other", translationKey: "other", keywords: "other category" },
 ] satisfies CategoryIconChoice[];
 
 const preferredValues = new Set(preferredCategoryIconChoices.map(({ value }) => value));

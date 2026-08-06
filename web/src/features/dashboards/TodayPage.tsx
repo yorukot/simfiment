@@ -7,15 +7,17 @@ import { addDays, formatDate, todayInTimezone } from "../../lib/date";
 import { TransactionRow } from "../transactions/TransactionRow";
 import { CategoryBars, Summary } from "./DashboardParts";
 import { Button, Chip, Icon, IconButton } from "../../components/ui";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
 export function TodayPage({ settings, onAdd }: { settings: Settings; onAdd: () => void }) {
+  const { locale, messages } = useI18n();
   const params = useParams();
   const navigate = useNavigate();
   const today = todayInTimezone(settings.timezone);
   const date = params.date ?? today;
-  const fullDateLabel = formatDate(date);
-  const compactDateLabel = new Intl.DateTimeFormat("zh-TW", {
+  const fullDateLabel = formatDate(date, locale);
+  const compactDateLabel = new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -43,7 +45,9 @@ export function TodayPage({ settings, onAdd }: { settings: Settings; onAdd: () =
     <>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>{date === today ? "今天" : "每日摘要"}</p>
+          <p className={styles.eyebrow}>
+            {date === today ? messages.nav.today : messages.dashboard.dailySummary}
+          </p>
           <h1 aria-label={fullDateLabel}>
             <span className={styles.wideDate} aria-hidden="true">
               {fullDateLabel}
@@ -53,77 +57,87 @@ export function TodayPage({ settings, onAdd }: { settings: Settings; onAdd: () =
             </span>
           </h1>
           <p>
-            <Chip>{dashboard.data.totals.transactionCount} 筆交易</Chip>
+            <Chip>{messages.common.transactionCount(dashboard.data.totals.transactionCount)}</Chip>
           </p>
         </div>
         <Button type="button" onClick={onAdd}>
           <Icon name="add" size={20} />
-          記一筆
+          {messages.dashboard.recordCompact}
         </Button>
       </header>
-      <div className={styles.dateNavigator} aria-label="日期導覽">
+      <div className={styles.dateNavigator} aria-label={messages.dashboard.dateNavigation}>
         <IconButton
           variant="outlined"
           icon="chevronLeft"
-          label="前一天"
+          label={messages.dashboard.previousDay}
           onClick={() => go(addDays(date, -1))}
         />
         {date !== today ? (
           <Button variant="outlined" type="button" onClick={() => go(today)}>
-            回到今天
+            {messages.dashboard.backToToday}
           </Button>
         ) : (
-          <Chip>今天</Chip>
+          <Chip>{messages.nav.today}</Chip>
         )}
         <IconButton
           variant="outlined"
           icon="chevronRight"
-          label="後一天"
+          label={messages.dashboard.nextDay}
           onClick={() => go(addDays(date, 1))}
         />
       </div>
       <section className={styles.section}>
-        <Summary totals={dashboard.data.totals} currency={dashboard.data.currencyCode} />
+        <Summary
+          totals={dashboard.data.totals}
+          currency={dashboard.data.currencyCode}
+          exponent={settings.currencyExponent}
+        />
       </section>
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>交易</h2>
+          <h2>{messages.dashboard.transactions}</h2>
         </div>
         {transactions.data.length ? (
           <div className={styles.list}>
             {transactions.data.map((item) => (
-              <TransactionRow key={item.id} transaction={item} timezone={settings.timezone} />
+              <TransactionRow
+                key={item.id}
+                transaction={item}
+                timezone={settings.timezone}
+                currencyExponent={settings.currencyExponent}
+              />
             ))}
           </div>
         ) : (
           <EmptyState
-            title="這一天還沒有交易"
+            title={messages.dashboard.emptyDayTitle}
             action={
               <Button type="button" onClick={onAdd}>
                 <Icon name="add" size={20} />
-                記錄交易
+                {messages.nav.recordTransaction}
               </Button>
             }
           >
-            記錄一筆收入或支出，便會在這裡看到摘要。
+            {messages.dashboard.emptyDayBody}
           </EmptyState>
         )}
       </section>
       {dashboard.data.expenseCategories.length ? (
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
-            <h2>今日支出分布</h2>
+            <h2>{messages.dashboard.expenseDistributionToday}</h2>
           </div>
           <CategoryBars
             items={dashboard.data.expenseCategories}
             currency={dashboard.data.currencyCode}
+            exponent={settings.currencyExponent}
             kind="expense"
           />
         </section>
       ) : null}
       {date !== today ? (
         <p className={styles.hint} style={{ marginTop: 20 }}>
-          <Link to="/today">回到今天</Link>
+          <Link to="/today">{messages.dashboard.backToToday}</Link>
         </p>
       ) : null}
     </>

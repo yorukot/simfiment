@@ -15,6 +15,8 @@ import {
   TextField,
 } from "../../components/ui";
 import { dateTimeInputInTimezone, zonedLocalToISO } from "../../lib/date";
+import { currencySymbol, majorToMinor, moneyInputBounds } from "../../lib/money";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 import { useEntryLocation } from "./useEntryLocation";
 
@@ -31,6 +33,7 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
   const submittingRef = useRef(false);
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { locale, messages } = useI18n();
   const [kind, setKind] = useState<Kind>("expense");
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState<number>();
@@ -76,7 +79,7 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
       return api.post<Record<string, unknown>, Transaction>("/api/v1/transactions", {
         clientRequestId: requestId,
         kind,
-        amountMinor: Number(amount),
+        amountMinor: majorToMinor(amount, settings.currencyExponent) ?? 0,
         categoryId,
         title,
         occurredAt: zonedLocalToISO(occurredAt, settings.timezone),
@@ -108,8 +111,8 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
       closeDialog(true);
       resetAfterSuccess();
       showToast({
-        message: "交易已記錄。",
-        actionLabel: "復原",
+        message: messages.transactionEntry.recorded,
+        actionLabel: messages.common.restore,
         onAction: async () => {
           await api.delete(`/api/v1/transactions/${transaction.id}`);
           await invalidateTransactionQueries(queryClient);
@@ -140,21 +143,27 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (submittingRef.current) return;
-    if (!create.isPending && Number.isInteger(Number(amount)) && Number(amount) > 0 && categoryId) {
+    if (!create.isPending && majorToMinor(amount, settings.currencyExponent) && categoryId) {
       submittingRef.current = true;
       create.mutate();
     }
   }
   const fields = create.error instanceof ApiError ? create.error.fields : {};
+  const amountMinor = majorToMinor(amount, settings.currencyExponent);
+  const amountBounds = moneyInputBounds(settings.currencyExponent);
+  const localAmountError =
+    amount && amountMinor === undefined
+      ? messages.common.invalidAmountForCurrency(settings.currencyCode, settings.currencyExponent)
+      : undefined;
   const statusText = !locationEnabled
-    ? "關閉"
+    ? messages.transactionEntry.locationOff
     : locationCapture.status === "finding"
-      ? "尋找中…"
+      ? messages.transactionEntry.locationFinding
       : locationCapture.status === "ready"
-        ? "已取得"
+        ? messages.transactionEntry.locationReady
         : locationCapture.status === "permission_denied"
-          ? "權限遭拒"
-          : "無法取得";
+          ? messages.transactionEntry.locationDenied
+          : messages.transactionEntry.locationUnavailable;
   const statusClass =
     locationCapture.status === "ready"
       ? styles.statusReady
@@ -167,38 +176,40 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
       onOpenChange={(next) => {
         if (!next) closeDialog();
       }}
-      title="記錄交易"
-      description="金額與分類即可完成，其他資料都可稍後補上。"
+      title={messages.transactionEntry.title}
+      description={messages.transactionEntry.description}
     >
       <form className={styles.form} onSubmit={submit}>
         <SegmentedControl
-          label="交易類型"
+          label={messages.common.transactionType}
           value={kind}
           onValueChange={(value) => {
             setKind(value);
             setCategoryId(undefined);
           }}
           options={[
-            { value: "expense", label: "支出" },
-            { value: "income", label: "收入" },
+            { value: "expense", label: messages.common.expense },
+            { value: "income", label: messages.common.income },
           ]}
         />
         <NumericField
-          label="金額"
-          prefix="NT$"
+          label={messages.common.amount}
+          prefix={currencySymbol(locale, settings.currencyCode)}
           value={amount}
           onValueChange={setAmount}
-          min={1}
-          max={9_000_000_000_000}
+          min={amountBounds.min}
+          max={amountBounds.max}
+          step={amountBounds.step}
+          fractionDigits={settings.currencyExponent}
           required
-          error={fields.amountMinor}
+          error={fields.amountMinor || localAmountError}
           amount
           inputRef={amountRef}
         />
         <fieldset className={styles.choiceFieldset}>
-          <legend className={styles.label}>分類</legend>
+          <legend className={styles.label}>{messages.common.category}</legend>
           <ChoiceChipGroup
-            label="分類"
+            label={messages.common.category}
             value={categoryId ? String(categoryId) : undefined}
             onValueChange={(value) => setCategoryId(Number(value))}
             options={(categoriesQuery.data ?? []).map((category) => ({
@@ -213,7 +224,7 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
             type="button"
             onClick={() => setAddingCategory((value) => !value)}
           >
-            ＋ 新分類
+            {messages.transactionEntry.newCategory}
           </Button>
           {fields.categoryId ? (
             <span className={styles.fieldError}>{fields.categoryId}</span>
@@ -221,7 +232,7 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
           {addingCategory ? (
             <div className={styles.inlineForm}>
               <TextField
-                label="新分類名稱"
+                label={messages.transactionEntry.newCategoryName}
                 value={categoryName}
                 onChange={(event) => setCategoryName(event.target.value)}
                 maxLength={30}
@@ -233,7 +244,7 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
                 disabled={!categoryName.trim()}
                 onClick={() => createCategory.mutate()}
               >
-                建立
+                {messages.transactionEntry.create}
               </Button>
             </div>
           ) : null}
@@ -242,17 +253,21 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
           ) : null}
         </fieldset>
         <TextField
-          label="標題（選填）"
+          label={messages.common.optionalTitle}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           maxLength={80}
-          placeholder="例如：午餐、捷運、房租"
+          placeholder={messages.transactionEntry.titlePlaceholder}
           error={fields.title}
         />
-        <Disclosure label="其他選項" open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <Disclosure
+          label={messages.transactionEntry.otherOptions}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        >
           <div className={styles.form}>
             <TextField
-              label="日期與時間"
+              label={messages.common.dateTime}
               type="datetime-local"
               value={occurredAt}
               max={dateTimeInputInTimezone(new Date(Date.now() + 5 * 60_000), settings.timezone)}
@@ -261,12 +276,12 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
             <SwitchField
               checked={locationEnabled}
               onCheckedChange={setLocationEnabled}
-              label="附上這筆交易的輸入位置"
-              description="這是記帳當下的位置，不代表消費地點。"
+              label={messages.transactionEntry.attachLocation}
+              description={messages.transactionEntry.attachLocationDescription}
             />
             <div className={styles.locationStatus} aria-live="polite">
               <span className={`${styles.statusDot} ${statusClass}`} />
-              位置：{statusText}
+              {messages.transactionEntry.locationStatus(statusText)}
             </div>
           </div>
         </Disclosure>
@@ -277,8 +292,12 @@ export function TransactionEntry({ open, settings, onClose }: Props) {
             size="large"
             type="submit"
             loading={create.isPending}
-            disabled={!categoryId || !Number.isInteger(Number(amount)) || Number(amount) <= 0}
-          >{`儲存${kind === "expense" ? "支出" : "收入"}`}</Button>
+            disabled={!categoryId || amountMinor === undefined}
+          >
+            {kind === "expense"
+              ? messages.transactionEntry.saveExpense
+              : messages.transactionEntry.saveIncome}
+          </Button>
         </div>
       </form>
     </AdaptiveModal>

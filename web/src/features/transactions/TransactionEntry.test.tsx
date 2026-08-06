@@ -99,4 +99,51 @@ describe("TransactionEntry", () => {
     const secondRequest = JSON.parse(String(allPosts[1]?.[1]?.body)) as { clientRequestId: string };
     expect(secondRequest.clientRequestId).not.toBe(firstRequest.clientRequestId);
   });
+
+  it("converts a decimal major-unit amount to USD minor units", async () => {
+    const usdSettings = { ...settings, currencyCode: "USD", currencyExponent: 2 };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/categories"))
+        return new Response(JSON.stringify({ data: [category] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      if (url === "/api/v1/transactions" && init?.method === "POST")
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: 43,
+              kind: "expense",
+              amountMinor: 1234,
+              currencyCode: "USD",
+              category,
+              title: "",
+              occurredAt: "2026-08-05T04:31:00Z",
+              occurredLocalDate: "2026-08-05",
+              source: "manual",
+              locationStatus: "none",
+              createdAt: "2026-08-05T04:31:01Z",
+              updatedAt: "2026-08-05T04:31:01Z",
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(wrapper(<TransactionEntry open settings={usdSettings} onClose={vi.fn()} />));
+    const amount = screen.getByRole("textbox", { name: /金額/ });
+    fireEvent.change(amount, { target: { value: "12.34" } });
+    fireEvent.click(await screen.findByRole("button", { name: "飲食" }));
+    fireEvent.click(screen.getByRole("button", { name: "儲存支出" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/v1/transactions"),
+      ).toHaveLength(1),
+    );
+    const post = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/transactions");
+    const body = JSON.parse(String(post?.[1]?.body)) as { amountMinor: number };
+    expect(body.amountMinor).toBe(1234);
+  });
 });

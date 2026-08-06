@@ -732,6 +732,10 @@
   box-shadow: var(--md-sys-elevation-3);
   backdrop-filter: blur(16px);
 }
+.authLanguage {
+  width: min(100%, 260px);
+  margin: 0 0 24px auto;
+}
 .authIntro {
   margin-bottom: 26px;
 }
@@ -865,6 +869,7 @@
 }
 .settingsGrid {
   display: grid;
+  align-items: start;
   gap: 16px;
 }
 .settingHeading {
@@ -891,6 +896,24 @@
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-tertiary-container);
   color: var(--md-sys-color-on-tertiary-container);
+}
+.appearanceControls {
+  display: grid;
+  gap: 18px;
+}
+.settingControl {
+  display: grid;
+  gap: 9px;
+}
+.settingControl + .settingControl {
+  padding-top: 18px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+.settingControlLabel {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 .privacyNote {
   display: flex;

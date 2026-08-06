@@ -43,6 +43,7 @@ func New(svc *service.Service, db *sql.DB, cfg platform.Config, logger *slog.Log
 	mux.HandleFunc("POST /api/v1/categories/{id}/restore", a.protected(true, a.restoreCategory))
 	mux.HandleFunc("PUT /api/v1/categories/order", a.protected(true, a.reorderCategories))
 	mux.HandleFunc("GET /api/v1/transactions", a.protected(false, a.listTransactions))
+	mux.HandleFunc("GET /api/v1/transactions/export.csv", a.protected(false, a.exportTransactionsCSV))
 	mux.HandleFunc("POST /api/v1/transactions", a.protected(true, a.createTransaction))
 	mux.HandleFunc("GET /api/v1/transactions/{id}", a.protected(false, a.getTransaction))
 	mux.HandleFunc("PATCH /api/v1/transactions/{id}", a.protected(true, a.patchTransaction))

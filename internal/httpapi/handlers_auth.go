@@ -16,7 +16,7 @@ func (a *API) live(w http.ResponseWriter, _ *http.Request) {
 
 func (a *API) ready(w http.ResponseWriter, r *http.Request) {
 	if err := database.Health(r.Context(), a.db); err != nil {
-		a.writeAPIError(w, http.StatusServiceUnavailable, "not_ready", "資料庫目前無法使用。", nil, requestIDFrom(r.Context()))
+		a.writeAPIError(w, r, http.StatusServiceUnavailable, "not_ready", "資料庫目前無法使用。", nil, requestIDFrom(r.Context()))
 		return
 	}
 	a.writeData(w, http.StatusOK, map[string]string{"status": "ready"})
@@ -29,7 +29,8 @@ func (a *API) meta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.writeData(w, http.StatusOK, map[string]any{
-		"name": "Simfiment", "version": a.version, "initialized": initialized, "defaultLocale": "zh-TW",
+		"name": "Simfiment", "version": a.version, "initialized": initialized,
+		"defaultLocale": "zh-TW", "currencies": domain.SupportedCurrencies(),
 	})
 }
 

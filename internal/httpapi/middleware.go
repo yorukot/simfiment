@@ -42,7 +42,7 @@ func (a *API) middleware(next http.Handler) http.Handler {
 			if recovered := recover(); recovered != nil {
 				a.logger.Error("panic recovered", "request_id", requestID, "panic", recovered, "stack", string(debug.Stack()))
 				if recorder.status < 400 {
-					a.writeAPIError(recorder, http.StatusInternalServerError, "internal_error",
+					a.writeAPIError(recorder, r, http.StatusInternalServerError, "internal_error",
 						"發生未預期的錯誤，請稍後再試。", nil, requestID)
 				}
 			}

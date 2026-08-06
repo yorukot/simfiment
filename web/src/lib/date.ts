@@ -1,3 +1,5 @@
+import { currentLocale, messages, type SupportedLocale } from "../i18n";
+
 export function todayInTimezone(timezone: string): string {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: timezone,
@@ -23,8 +25,8 @@ export function addMonths(month: string, amount: number): string {
   return value.toISOString().slice(0, 7);
 }
 
-export function formatDate(date: string): string {
-  return new Intl.DateTimeFormat("zh-TW", {
+export function formatDate(date: string, locale: SupportedLocale): string {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -33,8 +35,8 @@ export function formatDate(date: string): string {
   }).format(new Date(`${date}T12:00:00Z`));
 }
 
-export function formatMonth(month: string): string {
-  return new Intl.DateTimeFormat("zh-TW", {
+export function formatMonth(month: string, locale: SupportedLocale): string {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
     timeZone: "UTC",
@@ -62,7 +64,7 @@ export function dateTimeInputInTimezone(date: Date, timezone: string): string {
 
 export function zonedLocalToISO(value: string, timezone: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match) throw new Error("日期與時間格式無效。");
+  if (!match) throw new Error(messages[currentLocale()].api.invalidDateTime);
   const [, year, month, day, hour, minute] = match;
   const wallClockUTC = Date.UTC(
     Number(year),

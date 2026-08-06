@@ -1,8 +1,11 @@
 import styles from "../styles/ui.module.css";
+import { useI18n } from "../i18n";
+import { formatMoneyMinor } from "../lib/money";
 
 type Props = {
   amount: number;
   currency?: string;
+  exponent?: number;
   kind?: "income" | "expense" | "net";
   showSign?: boolean;
   className?: string;
@@ -11,19 +14,20 @@ type Props = {
 export function MoneyText({
   amount,
   currency = "TWD",
+  exponent,
   kind = "net",
   showSign = true,
   className = "",
 }: Props) {
+  const { locale } = useI18n();
   const absolute = Math.abs(amount);
-  const formatted =
-    currency === "TWD"
-      ? `NT$ ${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 }).format(absolute)}`
-      : new Intl.NumberFormat("zh-TW", {
-          style: "currency",
-          currency,
-          maximumFractionDigits: 0,
-        }).format(absolute);
+  const resolvedExponent =
+    exponent ??
+    (currency === "TWD"
+      ? 0
+      : (new Intl.NumberFormat(locale, { style: "currency", currency }).resolvedOptions()
+          .maximumFractionDigits ?? 0));
+  const formatted = formatMoneyMinor(absolute, currency, resolvedExponent, locale);
   const direction =
     kind === "income" || (kind === "net" && amount > 0)
       ? "income"

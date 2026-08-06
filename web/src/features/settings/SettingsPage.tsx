@@ -1,10 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { api, errorMessage, setCSRFToken } from "../../api/client";
+import { api, ApiError, errorMessage, setCSRFToken } from "../../api/client";
 import type { Category, Kind, Meta, OperationsStatus, Session, Settings } from "../../api/types";
 import { ErrorState, PageLoading } from "../../components/States";
 import { useToast } from "../../components/Toast/ToastProvider";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
+import { CurrencyField } from "../../components/CurrencyField";
+import { useI18n } from "../../i18n";
 import {
   ActionMenu,
   AdaptiveModal,
@@ -19,35 +22,26 @@ import {
   SwitchField,
   TextField,
   categoryIconChoices,
+  type CategoryIconTranslationKey,
   type IconName,
 } from "../../components/ui";
 import styles from "../../styles/ui.module.css";
-
-const iconOptions = categoryIconChoices.map(({ value, label, keywords }) => ({
-  value,
-  label,
-  keywords,
-  icon: <CategoryIcon iconKey={value} width={24} height={24} />,
-}));
-
-const settingsTabs = [
-  { to: "/settings", label: "一般", icon: "settings" },
-  { to: "/settings/categories", label: "分類", icon: "category" },
-  { to: "/settings/location", label: "位置", icon: "location" },
-  { to: "/settings/security", label: "安全", icon: "security" },
-] satisfies Array<{ to: string; label: string; icon: IconName }>;
 
 export function SettingsPage({ settings, meta }: { settings: Settings; meta: Meta }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { locale, messages } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [timezoneDraft, setTimezoneDraft] = useState(settings.timezone);
   const [timezoneConfirmed, setTimezoneConfirmed] = useState(false);
+  const [currencyDraft, setCurrencyDraft] = useState(settings.currencyCode);
+  const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);
+  const [currencyConfirmed, setCurrencyConfirmed] = useState(false);
   const onCategories = location.pathname === "/settings/categories";
   const onSecurity = location.pathname === "/settings/security";
   const onLocation = location.pathname === "/settings/location";
@@ -76,9 +70,22 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   const patchSettings = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api.patch<Record<string, unknown>, Settings>("/api/v1/settings", body),
-    onSuccess: async () => {
+    onSuccess: async (updated) => {
       await refreshSession();
-      showToast({ message: "設定已更新。" });
+      if (updated.currencyCode !== settings.currencyCode) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+          queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+          queryClient.invalidateQueries({ queryKey: ["transaction"] }),
+          queryClient.invalidateQueries({ queryKey: ["recurring-rules"] }),
+          queryClient.invalidateQueries({ queryKey: ["recurring-occurrences"] }),
+          queryClient.invalidateQueries({ queryKey: ["recurring-preview"] }),
+        ]);
+      }
+      setCurrencyDraft(updated.currencyCode);
+      setCurrencyDialogOpen(false);
+      setCurrencyConfirmed(false);
+      showToast({ message: messages.settings.updated });
     },
   });
   const password = useMutation({
@@ -87,7 +94,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      showToast({ message: "密碼已變更，其他登入階段已撤銷。" });
+      showToast({ message: messages.settings.passwordUpdated });
     },
   });
   const logout = useMutation({
@@ -99,7 +106,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   });
   const revoke = useMutation({
     mutationFn: () => api.post("/api/v1/sessions/revoke-others", {}),
-    onSuccess: () => showToast({ message: "其他登入階段已撤銷。" }),
+    onSuccess: () => showToast({ message: messages.settings.sessionsRevoked }),
   });
 
   if (onCategories && (expense.isPending || income.isPending))
@@ -125,13 +132,21 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
     event.preventDefault();
     setPasswordError("");
     if (newPassword !== confirmPassword) {
-      setPasswordError("兩次輸入的新密碼不同。");
+      setPasswordError(messages.settings.passwordMismatch);
       return;
     }
     password.mutate();
   }
 
   const sharedError = patchSettings.error || logout.error || revoke.error || operations.error;
+  const settingsFields = patchSettings.error instanceof ApiError ? patchSettings.error.fields : {};
+  const currencyDefinition = meta.currencies.find((item) => item.code === currencyDraft);
+  const currencyExponent = currencyDefinition?.exponent ?? settings.currencyExponent;
+  const truncatesCurrency = currencyExponent < settings.currencyExponent;
+  const exampleFraction = "345".slice(0, settings.currencyExponent);
+  const sourceExample = `${settings.currencyCode} 12${exampleFraction ? `.${exampleFraction}` : ""}`;
+  const targetFraction = exampleFraction.slice(0, currencyExponent);
+  const targetExample = `${currencyDraft} 12${targetFraction ? `.${targetFraction}` : ""}`;
   return (
     <SettingsScaffold>
       {sharedError ? <p className={styles.formError}>{errorMessage(sharedError)}</p> : null}
@@ -143,12 +158,20 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="category" />
               </span>
               <div>
-                <h2>分類</h2>
-                <p>封存後仍會保留歷史交易；每種類型至少保留一個啟用分類。</p>
+                <h2>{messages.settings.categories}</h2>
+                <p>{messages.settings.categoriesDescription}</p>
               </div>
             </div>
-            <CategoryManager kind="expense" title="支出分類" items={expense.data ?? []} />
-            <CategoryManager kind="income" title="收入分類" items={income.data ?? []} />
+            <CategoryManager
+              kind="expense"
+              title={messages.settings.expenseCategories}
+              items={expense.data ?? []}
+            />
+            <CategoryManager
+              kind="income"
+              title={messages.settings.incomeCategories}
+              items={income.data ?? []}
+            />
           </Card>
         </div>
       ) : onSecurity ? (
@@ -159,13 +182,13 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="lock" />
               </span>
               <div>
-                <h2>變更密碼</h2>
-                <p>完成後會自動撤銷其他裝置的登入階段。</p>
+                <h2>{messages.settings.changePassword}</h2>
+                <p>{messages.settings.changePasswordDescription}</p>
               </div>
             </div>
             <form className={styles.form} onSubmit={submitPassword}>
               <TextField
-                label="目前密碼"
+                label={messages.settings.currentPassword}
                 type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
@@ -173,8 +196,8 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 required
               />
               <TextField
-                label="新密碼"
-                supportingText="至少 12 個字元"
+                label={messages.settings.newPassword}
+                supportingText={messages.settings.passwordHint}
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -183,7 +206,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 required
               />
               <TextField
-                label="確認新密碼"
+                label={messages.settings.confirmNewPassword}
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -194,7 +217,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <p className={styles.formError}>{passwordError || errorMessage(password.error)}</p>
               ) : null}
               <Button variant="outlined" type="submit" loading={password.isPending}>
-                更新密碼
+                {messages.settings.updatePassword}
               </Button>
             </form>
           </Card>
@@ -204,8 +227,8 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="devices" />
               </span>
               <div>
-                <h2>登入階段</h2>
-                <p>撤銷其他裝置上的登入階段；目前裝置會保持登入。</p>
+                <h2>{messages.settings.sessions}</h2>
+                <p>{messages.settings.sessionsDescription}</p>
               </div>
             </div>
             <div className={styles.actions}>
@@ -215,7 +238,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 onClick={() => revoke.mutate()}
                 loading={revoke.isPending}
               >
-                撤銷其他階段
+                {messages.settings.revokeOtherSessions}
               </Button>
               <Button
                 variant="danger"
@@ -224,7 +247,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 loading={logout.isPending}
               >
                 <Icon name="logout" size={19} />
-                登出
+                {messages.settings.logout}
               </Button>
             </div>
           </Card>
@@ -237,8 +260,8 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="location" />
               </span>
               <div>
-                <h2>輸入位置</h2>
-                <p>座標保存在 Simfiment；交易儲存不會等待位置。</p>
+                <h2>{messages.settings.entryLocation}</h2>
+                <p>{messages.settings.entryLocationDescription}</p>
               </div>
             </div>
             <SwitchField
@@ -247,16 +270,15 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 patchSettings.mutate({ automaticLocationEnabled })
               }
               disabled={patchSettings.isPending}
-              label="新交易自動嘗試附上位置"
-              description="瀏覽器拒絕或逾時時，交易仍會正常儲存。"
+              label={messages.settings.automaticLocation}
+              description={messages.settings.automaticLocationDescription}
             />
             <div className={styles.privacyNote}>
               <Icon name="security" size={20} />
               <p>
-                <strong>隱私說明</strong>
+                <strong>{messages.settings.privacy}</strong>
                 <br />
-                開啟含位置的交易明細時，座標會提供給 OpenStreetMap
-                以顯示地圖；你可以隨時移除已儲存的位置。
+                {messages.settings.privacyDescription}
               </p>
             </div>
           </Card>
@@ -269,20 +291,29 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="palette" />
               </span>
               <div>
-                <h2>外觀</h2>
-                <p>選擇跟隨裝置或固定明暗主題。</p>
+                <h2>{messages.settings.appearance}</h2>
+                <p>{messages.settings.appearanceDescription}</p>
               </div>
             </div>
-            <SegmentedControl
-              label="外觀主題"
-              value={settings.theme}
-              onValueChange={(theme) => patchSettings.mutate({ theme })}
-              options={[
-                { value: "system", label: "系統" },
-                { value: "light", label: "淺色" },
-                { value: "dark", label: "深色" },
-              ]}
-            />
+            <div className={styles.appearanceControls}>
+              <div className={styles.settingControl}>
+                <span className={styles.settingControlLabel}>{messages.settings.theme}</span>
+                <SegmentedControl
+                  label={messages.settings.theme}
+                  value={settings.theme}
+                  onValueChange={(theme) => patchSettings.mutate({ theme })}
+                  options={[
+                    { value: "system", label: messages.settings.systemTheme },
+                    { value: "light", label: messages.settings.lightTheme },
+                    { value: "dark", label: messages.settings.darkTheme },
+                  ]}
+                />
+              </div>
+              <div className={styles.settingControl}>
+                <span className={styles.settingControlLabel}>{messages.language.label}</span>
+                <LanguageSwitcher />
+              </div>
+            </div>
           </Card>
           <Card>
             <div className={styles.settingHeading}>
@@ -290,25 +321,25 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="calendar" />
               </span>
               <div>
-                <h2>時區與格式</h2>
-                <p>變更時區不會重新分組既有資料。</p>
+                <h2>{messages.settings.timezoneAndFormat}</h2>
+                <p>{messages.settings.timezoneDescription}</p>
               </div>
             </div>
             <div className={styles.form}>
               <TextField
-                label="IANA 時區"
+                label={messages.settings.timezone}
                 value={timezoneDraft}
                 onChange={(event) => {
                   setTimezoneDraft(event.target.value);
                   setTimezoneConfirmed(false);
                 }}
-                supportingText="例如 Asia/Taipei"
+                supportingText={messages.settings.timezoneExample}
               />
               {timezoneDraft !== settings.timezone ? (
                 <CheckboxField
                   checked={timezoneConfirmed}
                   onCheckedChange={setTimezoneConfirmed}
-                  label="我了解歷史日／月分組不會自動改變"
+                  label={messages.settings.confirmTimezone}
                 />
               ) : null}
               <Button
@@ -320,13 +351,49 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                   patchSettings.mutate({ timezone: timezoneDraft, confirmTimezoneChange: true })
                 }
               >
-                更新時區
+                {messages.settings.updateTimezone}
               </Button>
-              <div className={styles.metaList}>
-                <span>介面語系</span>
-                <strong>繁體中文（{settings.locale}）</strong>
-                <span>安裝幣別</span>
-                <strong>{settings.currencyCode}</strong>
+              <CurrencyField
+                currencies={meta.currencies}
+                value={currencyDraft}
+                onValueChange={(value) => {
+                  setCurrencyDraft(value);
+                  setCurrencyConfirmed(false);
+                }}
+                error={settingsFields.currencyCode}
+                disabled={patchSettings.isPending}
+              />
+              <Button
+                variant="outlined"
+                type="button"
+                disabled={currencyDraft === settings.currencyCode}
+                onClick={() => setCurrencyDialogOpen(true)}
+              >
+                {messages.settings.updateCurrency}
+              </Button>
+            </div>
+          </Card>
+          <Card className={styles.settingWide}>
+            <div className={styles.settingHeading}>
+              <span className={styles.settingIcon}>
+                <Icon name="download" />
+              </span>
+              <div>
+                <h2>{messages.settings.dataExport}</h2>
+                <p>{messages.settings.dataExportDescription}</p>
+              </div>
+            </div>
+            <div className={styles.form}>
+              <p className={styles.hint}>{messages.settings.dataExportContents}</p>
+              <div className={styles.actions}>
+                <Button
+                  variant="outlined"
+                  type="button"
+                  onClick={() => window.location.assign("/api/v1/transactions/export.csv")}
+                >
+                  <Icon name="download" size={19} />
+                  {messages.settings.exportCSV}
+                </Button>
               </div>
             </div>
           </Card>
@@ -336,58 +403,131 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                 <Icon name="info" />
               </span>
               <div>
-                <h2>系統狀態</h2>
+                <h2>{messages.settings.systemStatus}</h2>
                 <p>Simfiment {meta.version}</p>
               </div>
             </div>
             <div className={styles.statusGrid}>
               <div>
-                <span>資料庫</span>
+                <span>{messages.settings.database}</span>
                 <strong>
                   {operations.data?.databaseHealthy
-                    ? "正常"
+                    ? messages.settings.healthy
                     : operations.isPending
-                      ? "檢查中"
-                      : "需要檢查"}
+                      ? messages.settings.checking
+                      : messages.settings.needsCheck}
                 </strong>
               </div>
               <div>
-                <span>備份</span>
-                <strong>{operations.data ? `${operations.data.backupCount} 份` : "檢查中"}</strong>
+                <span>{messages.settings.backups}</span>
+                <strong>
+                  {operations.data
+                    ? messages.settings.backupCount(operations.data.backupCount)
+                    : messages.settings.checking}
+                </strong>
               </div>
               <div>
-                <span>最近備份</span>
+                <span>{messages.settings.latestBackup}</span>
                 <strong>
                   {operations.data?.lastBackupAt
-                    ? new Intl.DateTimeFormat("zh-TW", {
+                    ? new Intl.DateTimeFormat(locale, {
                         dateStyle: "medium",
                         timeStyle: "short",
                       }).format(new Date(operations.data.lastBackupAt))
-                    : "尚無"}
+                    : messages.settings.none}
                 </strong>
               </div>
             </div>
             <p className={styles.hint}>
-              備份由伺服器執行 <code>simfiment backup create</code> 建立，介面不提供資料庫下載。
+              {messages.settings.backupHintBefore} <code>simfiment backup create</code>
+              {messages.settings.backupHintAfter}
             </p>
           </Card>
         </div>
       )}
+      <AdaptiveModal
+        open={currencyDialogOpen}
+        onOpenChange={(open) => {
+          setCurrencyDialogOpen(open);
+          if (!open) setCurrencyConfirmed(false);
+        }}
+        title={messages.settings.currencyChangeTitle}
+        description={messages.settings.currencyChangeDescription(
+          settings.currencyCode,
+          currencyDraft,
+        )}
+      >
+        <div className={styles.form}>
+          <div className={styles.privacyNote}>
+            <Icon name="info" size={20} />
+            <p>{messages.settings.currencyNoExchange}</p>
+          </div>
+          {truncatesCurrency ? (
+            <div className={styles.privacyNote}>
+              <Icon name="warning" size={20} />
+              <p>
+                {messages.settings.currencyTruncateWarning(
+                  currencyExponent,
+                  `${sourceExample} → ${targetExample}`,
+                )}
+              </p>
+            </div>
+          ) : null}
+          <CheckboxField
+            checked={currencyConfirmed}
+            onCheckedChange={setCurrencyConfirmed}
+            label={messages.settings.confirmCurrencyChange}
+          />
+          {patchSettings.error ? (
+            <p className={styles.formError}>{errorMessage(patchSettings.error)}</p>
+          ) : null}
+          <div className={styles.actions}>
+            <Button
+              type="button"
+              disabled={!currencyConfirmed}
+              loading={patchSettings.isPending}
+              onClick={() =>
+                patchSettings.mutate({
+                  currencyCode: currencyDraft,
+                  confirmCurrencyChange: true,
+                })
+              }
+            >
+              {messages.settings.confirmCurrencyAction}
+            </Button>
+            <Button
+              variant="text"
+              type="button"
+              disabled={patchSettings.isPending}
+              onClick={() => setCurrencyDialogOpen(false)}
+            >
+              {messages.common.cancel}
+            </Button>
+          </div>
+        </div>
+      </AdaptiveModal>
     </SettingsScaffold>
   );
 }
 
 function SettingsScaffold({ children }: { children: React.ReactNode }) {
+  const { messages } = useI18n();
+  const settingsTabs = [
+    { to: "/settings", label: messages.settings.general, icon: "settings" },
+    { to: "/settings/categories", label: messages.settings.categories, icon: "category" },
+    { to: "/settings/location", label: messages.settings.location, icon: "location" },
+    { to: "/settings/security", label: messages.settings.security, icon: "security" },
+  ] satisfies Array<{ to: string; label: string; icon: IconName }>;
   return (
     <>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>偏好與安全</p>
-          <h1>設定</h1>
-          <p>管理分類、位置、外觀與登入密碼。</p>
+          <p className={styles.eyebrow}>{messages.settings.eyebrow}</p>
+          <h1>{messages.settings.title}</h1>
+          <p>{messages.settings.intro}</p>
         </div>
       </header>
-      <nav className={styles.settingsTabs} aria-label="設定區段">
+      <nav className={styles.settingsTabs} aria-label={messages.settings.sections}>
         {settingsTabs.map((tab) => (
           <NavLink
             key={tab.to}
@@ -410,10 +550,23 @@ function SettingsScaffold({ children }: { children: React.ReactNode }) {
 function CategoryManager({ kind, title, items }: { kind: Kind; title: string; items: Category[] }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { messages } = useI18n();
   const [name, setName] = useState("");
   const [iconKey, setIconKey] = useState("");
   const [renaming, setRenaming] = useState<Category>();
   const [renameValue, setRenameValue] = useState("");
+  const iconOptions = useMemo(
+    () =>
+      categoryIconChoices.map(({ value, label, keywords, translationKey }) => ({
+        value,
+        label: translationKey
+          ? messages.icons[translationKey as CategoryIconTranslationKey]
+          : label,
+        keywords,
+        icon: <CategoryIcon iconKey={value} width={24} height={24} />,
+      })),
+    [messages],
+  );
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["categories", kind] }),
@@ -425,7 +578,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
       setName("");
       setIconKey("");
       await refresh();
-      showToast({ message: "分類已建立。" });
+      showToast({ message: messages.settings.categoryCreated });
     },
   });
   const action = useMutation({
@@ -468,7 +621,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
     <section className={styles.section}>
       <div className={styles.sectionTitle}>
         <h3>{title}</h3>
-        <Chip>{active.length} 個啟用</Chip>
+        <Chip>{messages.settings.activeCount(active.length)}</Chip>
       </div>
       <div className={styles.categoryList}>
         {items.map((item) => (
@@ -478,13 +631,13 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
             </span>
             <div className={styles.rowGrow}>
               <strong>{item.name}</strong>
-              <small>{item.archivedAt ? "已封存" : "啟用中"}</small>
+              <small>{item.archivedAt ? messages.common.archived : messages.common.active}</small>
             </div>
             {!item.archivedAt ? (
               <div className={styles.categoryIconSelect}>
                 <IconPickerField
                   hideLabel
-                  label={`${item.name} 圖示`}
+                  label={messages.settings.itemIcon(item.name)}
                   value={item.iconKey}
                   onValueChange={(nextIcon) => action.mutate({ item, action: "update", nextIcon })}
                   options={iconOptions}
@@ -496,19 +649,19 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
                 !item.archivedAt
                   ? [
                       {
-                        label: "上移",
+                        label: messages.settings.moveUp,
                         icon: "arrowUp",
                         disabled: active[0]?.id === item.id,
                         onSelect: () => move(item, -1),
                       },
                       {
-                        label: "下移",
+                        label: messages.settings.moveDown,
                         icon: "arrowDown",
                         disabled: active.at(-1)?.id === item.id,
                         onSelect: () => move(item, 1),
                       },
                       {
-                        label: "重新命名",
+                        label: messages.settings.rename,
                         icon: "edit",
                         onSelect: () => {
                           setRenameValue(item.name);
@@ -516,7 +669,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
                         },
                       },
                       {
-                        label: "封存",
+                        label: messages.settings.archive,
                         icon: "archive",
                         danger: true,
                         separatorBefore: true,
@@ -525,7 +678,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
                     ]
                   : [
                       {
-                        label: "還原",
+                        label: messages.settings.restore,
                         icon: "restore",
                         onSelect: () => action.mutate({ item, action: "restore" }),
                       },
@@ -537,16 +690,16 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
       </div>
       <div className={styles.categoryComposer}>
         <TextField
-          label={`新增${title}`}
+          label={messages.settings.addCategory(title)}
           value={name}
           onChange={(event) => setName(event.target.value)}
           maxLength={30}
-          placeholder="輸入分類名稱"
+          placeholder={messages.settings.categoryNamePlaceholder}
         />
         <IconPickerField
           className={styles.categoryComposerIcon}
-          label="圖示"
-          accessibleLabel={`新增${title}圖示`}
+          label={messages.settings.icon}
+          accessibleLabel={messages.settings.addCategoryIcon(title)}
           value={iconKey}
           onValueChange={setIconKey}
           options={iconOptions}
@@ -559,7 +712,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
           onClick={() => add.mutate()}
         >
           <Icon name="add" size={20} />
-          新增
+          {messages.settings.add}
         </Button>
       </div>
       {add.error || action.error || reorder.error ? (
@@ -572,7 +725,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
         onOpenChange={(open) => {
           if (!open) setRenaming(undefined);
         }}
-        title="重新命名分類"
+        title={messages.settings.renameCategory}
       >
         {renaming ? (
           <form
@@ -585,7 +738,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
           >
             <TextField
               autoFocus
-              label="分類名稱"
+              label={messages.settings.categoryName}
               value={renameValue}
               onChange={(event) => setRenameValue(event.target.value)}
               maxLength={30}
@@ -598,7 +751,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
                 loading={action.isPending}
                 disabled={!renameValue.trim()}
               >
-                儲存名稱
+                {messages.settings.saveName}
               </Button>
             </div>
           </form>

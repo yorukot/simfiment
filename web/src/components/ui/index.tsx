@@ -24,6 +24,7 @@ import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { Icon, type IconName } from "./icons";
+import { useI18n } from "../../i18n";
 import styles from "./primitives.module.css";
 
 export {
@@ -31,6 +32,7 @@ export {
   Icon,
   categoryIconChoices,
   type CategoryIconChoice,
+  type CategoryIconTranslationKey,
   type IconName,
 } from "./icons";
 
@@ -142,12 +144,13 @@ export function NumericField({
   prefix,
   min,
   max,
-  step = 1,
+  step,
   required,
   error,
   supportingText,
   amount,
   inputRef,
+  fractionDigits,
 }: {
   label: ReactNode;
   value: string;
@@ -161,7 +164,9 @@ export function NumericField({
   supportingText?: ReactNode;
   amount?: boolean;
   inputRef?: React.Ref<HTMLInputElement>;
+  fractionDigits?: number;
 }) {
+  const { locale } = useI18n();
   const numericValue = value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
   return (
     <Field.Root className={cx(styles.field, amount && styles.amount)} invalid={Boolean(error)}>
@@ -174,8 +179,13 @@ export function NumericField({
         onValueChange={(next) => onValueChange(next === null ? "" : String(next))}
         min={min}
         max={max}
-        step={step}
-        locale="zh-TW"
+        step={step ?? (fractionDigits === undefined ? 1 : 1 / 10 ** fractionDigits)}
+        locale={locale}
+        format={
+          fractionDigits === undefined
+            ? undefined
+            : { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }
+        }
       >
         <NumberField.Group className={styles.numberGroup}>
           {prefix ? <span className={styles.numberPrefix}>{prefix}</span> : null}
@@ -183,7 +193,7 @@ export function NumericField({
             ref={inputRef}
             className={styles.numberInput}
             required={required}
-            inputMode="numeric"
+            inputMode={fractionDigits && fractionDigits > 0 ? "decimal" : "numeric"}
           />
         </NumberField.Group>
       </NumberField.Root>
@@ -197,6 +207,112 @@ export function NumericField({
 }
 
 export type SelectOption = { value: string; label: string };
+
+export type SearchSelectOption = SelectOption & { keywords?: string };
+
+export function SearchSelectField({
+  label,
+  value,
+  onValueChange,
+  options,
+  searchLabel,
+  searchPlaceholder,
+  emptyText,
+  supportingText,
+  error,
+  disabled,
+  required,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: SearchSelectOption[];
+  searchLabel: string;
+  searchPlaceholder: string;
+  emptyText: string;
+  supportingText?: ReactNode;
+  error?: ReactNode;
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selected = options.find((option) => option.value === value);
+  const normalizedQuery = query.toLocaleLowerCase().trim();
+  const filtered = options.filter((option) =>
+    `${option.label} ${option.value} ${option.keywords ?? ""}`
+      .toLocaleLowerCase()
+      .includes(normalizedQuery),
+  );
+  return (
+    <Field.Root className={styles.field} invalid={Boolean(error)} disabled={disabled}>
+      <Field.Label className={styles.fieldLabel} nativeLabel={false}>
+        {label}
+        {required ? <span className={styles.required}> *</span> : null}
+      </Field.Label>
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setQuery("");
+        }}
+      >
+        <Popover.Trigger className={styles.selectTrigger} aria-label={label} disabled={disabled}>
+          <span className={styles.selectValue}>{selected?.label}</span>
+          <Icon name="chevronDown" size={20} />
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Positioner className={styles.selectPositioner} sideOffset={8} align="start">
+            <Popover.Popup
+              className={styles.searchSelectPopup}
+              role="dialog"
+              aria-label={label}
+              initialFocus={inputRef}
+            >
+              <input
+                ref={inputRef}
+                className={styles.searchSelectInput}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label={searchLabel}
+                placeholder={searchPlaceholder}
+              />
+              <div className={styles.searchSelectList} role="listbox" aria-label={label}>
+                {filtered.length ? (
+                  filtered.map((option) => (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={option.value === value}
+                      className={styles.searchSelectItem}
+                      key={option.value}
+                      onClick={() => {
+                        onValueChange(option.value);
+                        setOpen(false);
+                      }}
+                    >
+                      <span>{option.label}</span>
+                      {option.value === value ? <Icon name="check" size={18} /> : null}
+                    </button>
+                  ))
+                ) : (
+                  <p className={styles.searchSelectEmpty}>{emptyText}</p>
+                )}
+              </div>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
+      {error ? (
+        <Field.Error className={styles.fieldError}>{error}</Field.Error>
+      ) : supportingText ? (
+        <Field.Description className={styles.supporting}>{supportingText}</Field.Description>
+      ) : null}
+    </Field.Root>
+  );
+}
 
 export type IconPickerOption = {
   value: string;
@@ -230,6 +346,7 @@ export function IconPickerField({
   hideLabel?: boolean;
   className?: string;
 }) {
+  const { messages } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(ICON_PICKER_PAGE_SIZE);
@@ -269,7 +386,10 @@ export function IconPickerField({
       >
         <Popover.Trigger
           className={styles.iconPickerTrigger}
-          aria-label={`${accessibleLabel}：${selected?.label ?? "請選擇"}`}
+          aria-label={messages.common.labelledValue(
+            accessibleLabel,
+            selected?.label ?? messages.common.select,
+          )}
           disabled={disabled}
         >
           {selected?.icon}
@@ -296,14 +416,15 @@ export function IconPickerField({
                         setQuery(event.target.value);
                         setVisibleCount(ICON_PICKER_PAGE_SIZE);
                       }}
-                      placeholder="搜尋圖示（英文或中文）"
-                      aria-label="搜尋圖示"
+                      placeholder={messages.icons.searchPlaceholder}
+                      aria-label={messages.icons.searchLabel}
                     />
                   </div>
                   <span className={styles.iconPickerResultCount} role="status" aria-live="polite">
-                    {normalizedQuery
-                      ? `找到 ${filteredOptions.length.toLocaleString("zh-TW")} 個圖示`
-                      : `共 ${options.length.toLocaleString("zh-TW")} 個圖示`}
+                    {messages.icons.resultCount(
+                      normalizedQuery ? filteredOptions.length : options.length,
+                      Boolean(normalizedQuery),
+                    )}
                   </span>
                 </div>
               ) : null}
@@ -322,7 +443,11 @@ export function IconPickerField({
                 }}
               >
                 {visibleOptions.length ? (
-                  <div className={styles.iconPickerGrid} role="group" aria-label="圖示選項">
+                  <div
+                    className={styles.iconPickerGrid}
+                    role="group"
+                    aria-label={messages.icons.options}
+                  >
                     {visibleOptions.map((option) => (
                       <button
                         key={option.value || "default"}
@@ -349,9 +474,9 @@ export function IconPickerField({
                 ) : (
                   <div className={styles.iconPickerEmpty}>
                     <Icon name="search" size={28} />
-                    <span>找不到符合「{query.trim()}」的圖示</span>
+                    <span>{messages.icons.empty(query.trim())}</span>
                     <button type="button" onClick={resetSearch}>
-                      清除搜尋
+                      {messages.icons.clearSearch}
                     </button>
                   </div>
                 )}
@@ -365,7 +490,7 @@ export function IconPickerField({
                       );
                     }}
                   >
-                    顯示更多
+                    {messages.icons.showMore}
                   </button>
                 ) : null}
               </div>
@@ -382,7 +507,7 @@ export function SelectField({
   value,
   onValueChange,
   options,
-  placeholder = "請選擇",
+  placeholder,
   required,
   error,
   disabled,
@@ -400,6 +525,8 @@ export function SelectField({
   compact?: boolean;
   hideLabel?: boolean;
 }) {
+  const { messages } = useI18n();
+  const resolvedPlaceholder = placeholder ?? messages.common.select;
   return (
     <Field.Root className={styles.field} invalid={Boolean(error)} disabled={disabled}>
       <Field.Label
@@ -416,7 +543,7 @@ export function SelectField({
         disabled={disabled}
       >
         <Select.Trigger className={styles.selectTrigger} aria-required={required || undefined}>
-          <Select.Value className={styles.selectValue} placeholder={placeholder} />
+          <Select.Value className={styles.selectValue} placeholder={resolvedPlaceholder} />
           <Select.Icon>
             <Icon name="chevronDown" size={20} />
           </Select.Icon>
@@ -650,6 +777,7 @@ export function AdaptiveModal({
   description?: ReactNode;
   children: ReactNode;
 }) {
+  const { messages } = useI18n();
   const compact = useCompact();
   const keyboardOpen = useVirtualKeyboardOpen(open && compact);
   const intro = (
@@ -672,7 +800,7 @@ export function AdaptiveModal({
                 <div className={styles.drawerHandle} aria-hidden="true" />
                 <div className={styles.modalHeader}>
                   <Drawer.Title render={<div />}>{intro}</Drawer.Title>
-                  <Drawer.Close className={styles.iconButton} aria-label="關閉">
+                  <Drawer.Close className={styles.iconButton} aria-label={messages.common.close}>
                     <Icon name="close" />
                   </Drawer.Close>
                 </div>
@@ -693,7 +821,7 @@ export function AdaptiveModal({
           <Dialog.Popup className={styles.dialogPopup}>
             <div className={styles.modalHeader}>
               <Dialog.Title render={<div />}>{intro}</Dialog.Title>
-              <Dialog.Close className={styles.iconButton} aria-label="關閉">
+              <Dialog.Close className={styles.iconButton} aria-label={messages.common.close}>
                 <Icon name="close" />
               </Dialog.Close>
             </div>
@@ -714,16 +842,12 @@ export type ActionMenuItem = {
   separatorBefore?: boolean;
 };
 
-export function ActionMenu({
-  label = "更多操作",
-  items,
-}: {
-  label?: string;
-  items: ActionMenuItem[];
-}) {
+export function ActionMenu({ label, items }: { label?: string; items: ActionMenuItem[] }) {
+  const { messages } = useI18n();
+  const accessibleLabel = label ?? messages.common.moreActions;
   return (
     <Menu.Root>
-      <Menu.Trigger className={styles.iconButton} aria-label={label}>
+      <Menu.Trigger className={styles.iconButton} aria-label={accessibleLabel}>
         <Icon name="more" />
       </Menu.Trigger>
       <Menu.Portal>

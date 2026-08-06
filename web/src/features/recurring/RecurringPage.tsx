@@ -26,6 +26,8 @@ import {
   TextField,
 } from "../../components/ui";
 import { addDays, todayInTimezone, zonedLocalToISO } from "../../lib/date";
+import { currencySymbol, majorToMinor, minorToMajorInput, moneyInputBounds } from "../../lib/money";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
 type Frequency = "weekly" | "monthly" | "yearly";
@@ -40,15 +42,15 @@ type RuleForm = {
 };
 type OccurrenceForm = { amount: string; categoryId?: number; title: string; occurredAt: string };
 
-const frequencyOptions = [
-  { value: "weekly", label: "週" },
-  { value: "monthly", label: "月" },
-  { value: "yearly", label: "年" },
-] satisfies Array<{ value: Frequency; label: string }>;
-
 export function RecurringPage({ settings }: { settings: Settings }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { locale, messages } = useI18n();
+  const frequencyOptions = [
+    { value: "weekly", label: messages.common.week },
+    { value: "monthly", label: messages.common.month },
+    { value: "yearly", label: messages.common.year },
+  ] satisfies Array<{ value: Frequency; label: string }>;
   const today = todayInTimezone(settings.timezone);
   const emptyRule = (): RuleForm => ({
     kind: "expense",
@@ -113,7 +115,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
       const body = {
         clientRequestId: crypto.randomUUID(),
         kind: form.kind,
-        amountMinor: Number(form.amount),
+        amountMinor: majorToMinor(form.amount, settings.currencyExponent) ?? 0,
         categoryId: form.categoryId,
         title: form.title,
         frequency: form.frequency,
@@ -129,7 +131,9 @@ export function RecurringPage({ settings }: { settings: Settings }) {
       await refresh();
       setShowForm(false);
       setEditing(undefined);
-      showToast({ message: wasEditing ? "週期規則已更新。" : "週期規則已建立。" });
+      showToast({
+        message: wasEditing ? messages.recurring.ruleUpdated : messages.recurring.ruleCreated,
+      });
     },
   });
   const confirm = useMutation({
@@ -138,14 +142,14 @@ export function RecurringPage({ settings }: { settings: Settings }) {
     onSuccess: async () => {
       await refresh();
       setEditingOccurrence(undefined);
-      showToast({ message: "週期項目已確認並記入交易。" });
+      showToast({ message: messages.recurring.occurrenceConfirmed });
     },
   });
   const skip = useMutation({
     mutationFn: (id: number) => api.post(`/api/v1/recurring-occurrences/${id}/skip`, {}),
     onSuccess: async () => {
       await refresh();
-      showToast({ message: "已略過這次週期項目。" });
+      showToast({ message: messages.recurring.occurrenceSkipped });
     },
   });
   const stateRule = useMutation({
@@ -164,7 +168,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
     setEditing(rule);
     setForm({
       kind: rule.kind,
-      amount: String(rule.amountMinor),
+      amount: minorToMajorInput(rule.amountMinor, settings.currencyExponent),
       categoryId: rule.category.id,
       title: rule.title,
       frequency: rule.frequency,
@@ -177,7 +181,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
   function beginOccurrenceEdit(item: RecurringOccurrence) {
     setEditingOccurrence(item);
     setOccurrenceForm({
-      amount: String(item.amountMinor),
+      amount: minorToMajorInput(item.amountMinor, settings.currencyExponent),
       categoryId: item.category.id,
       title: item.title,
       occurredAt: `${item.scheduledOn}T12:00`,
@@ -199,18 +203,25 @@ export function RecurringPage({ settings }: { settings: Settings }) {
     value: String(item.id),
     label: item.name,
   }));
+  const amountBounds = moneyInputBounds(settings.currencyExponent);
+  const ruleAmountMinor = majorToMinor(form.amount, settings.currencyExponent);
+  const occurrenceAmountMinor = majorToMinor(occurrenceForm.amount, settings.currencyExponent);
+  const amountError = (value: string, minor: number | undefined) =>
+    value && minor === undefined
+      ? messages.common.invalidAmountForCurrency(settings.currencyCode, settings.currencyExponent)
+      : undefined;
 
   return (
     <>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>週期收支</p>
-          <h1>待處理項目</h1>
-          <p>只有確認後才會計入實際收支。</p>
+          <p className={styles.eyebrow}>{messages.recurring.eyebrow}</p>
+          <h1>{messages.recurring.title}</h1>
+          <p>{messages.recurring.intro}</p>
         </div>
         <Button type="button" onClick={beginNewRule}>
           <Icon name="add" size={20} />
-          新規則
+          {messages.recurring.newRule}
         </Button>
       </header>
       {skip.error || stateRule.error ? (
@@ -223,38 +234,42 @@ export function RecurringPage({ settings }: { settings: Settings }) {
           setShowForm(open);
           if (!open) setEditing(undefined);
         }}
-        title={editing ? "編輯週期規則" : "建立週期規則"}
-        description="規則到期後仍需手動確認，才會計入收支。"
+        title={editing ? messages.recurring.editRule : messages.recurring.createRule}
+        description={messages.recurring.ruleDescription}
       >
         <form
           className={styles.form}
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
-            saveRule.mutate();
+            if (ruleAmountMinor) saveRule.mutate();
           }}
         >
           <SegmentedControl
-            label="交易類型"
+            label={messages.common.transactionType}
             value={form.kind}
             onValueChange={(kind) =>
               setForm((value) => ({ ...value, kind, categoryId: undefined }))
             }
             options={[
-              { value: "expense", label: "支出" },
-              { value: "income", label: "收入" },
+              { value: "expense", label: messages.common.expense },
+              { value: "income", label: messages.common.income },
             ]}
           />
           <NumericField
-            label="金額"
+            label={messages.common.amount}
             value={form.amount}
             onValueChange={(amount) => setForm((value) => ({ ...value, amount }))}
-            prefix="$"
-            min={1}
+            prefix={currencySymbol(locale, settings.currencyCode)}
+            min={amountBounds.min}
+            max={amountBounds.max}
+            step={amountBounds.step}
+            fractionDigits={settings.currencyExponent}
             required
+            error={amountError(form.amount, ruleAmountMinor)}
             amount
           />
           <SelectField
-            label="分類"
+            label={messages.common.category}
             value={form.categoryId ? String(form.categoryId) : ""}
             onValueChange={(value) =>
               setForm((current) => ({ ...current, categoryId: Number(value) || undefined }))
@@ -264,14 +279,14 @@ export function RecurringPage({ settings }: { settings: Settings }) {
             disabled={categories.isPending}
           />
           <TextField
-            label="標題（選填）"
+            label={messages.common.optionalTitle}
             maxLength={80}
             value={form.title}
             onChange={(event) => setForm((value) => ({ ...value, title: event.target.value }))}
           />
           <div className={styles.twoColumnFields}>
             <NumericField
-              label="每隔"
+              label={messages.recurring.every}
               value={form.interval}
               onValueChange={(interval) => setForm((value) => ({ ...value, interval }))}
               min={1}
@@ -279,7 +294,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
               required
             />
             <SelectField
-              label="頻率"
+              label={messages.recurring.frequency}
               value={form.frequency}
               onValueChange={(frequency) =>
                 setForm((value) => ({ ...value, frequency: frequency as Frequency }))
@@ -289,7 +304,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
             />
           </div>
           <TextField
-            label="開始日期"
+            label={messages.recurring.startDate}
             type="date"
             value={form.startOn}
             onChange={(event) => setForm((value) => ({ ...value, startOn: event.target.value }))}
@@ -303,9 +318,9 @@ export function RecurringPage({ settings }: { settings: Settings }) {
               fullWidth
               type="submit"
               loading={saveRule.isPending}
-              disabled={!form.categoryId || Number(form.amount) <= 0}
+              disabled={!form.categoryId || ruleAmountMinor === undefined}
             >
-              儲存規則
+              {messages.recurring.saveRule}
             </Button>
           </div>
         </form>
@@ -316,19 +331,20 @@ export function RecurringPage({ settings }: { settings: Settings }) {
         onOpenChange={(open) => {
           if (!open) setEditingOccurrence(undefined);
         }}
-        title="調整這一次"
-        description="只會變更並確認這次項目，不影響原規則。"
+        title={messages.recurring.adjustOccurrence}
+        description={messages.recurring.adjustDescription}
       >
         {editingOccurrence ? (
           <form
             className={styles.form}
             onSubmit={(event) => {
               event.preventDefault();
+              if (!occurrenceAmountMinor) return;
               confirm.mutate({
                 id: editingOccurrence.id,
                 override: {
                   clientRequestId: crypto.randomUUID(),
-                  amountMinor: Number(occurrenceForm.amount),
+                  amountMinor: occurrenceAmountMinor,
                   categoryId: occurrenceForm.categoryId,
                   title: occurrenceForm.title,
                   occurredAt: zonedLocalToISO(occurrenceForm.occurredAt, settings.timezone),
@@ -337,16 +353,20 @@ export function RecurringPage({ settings }: { settings: Settings }) {
             }}
           >
             <NumericField
-              label="金額"
+              label={messages.common.amount}
               value={occurrenceForm.amount}
               onValueChange={(amount) => setOccurrenceForm((value) => ({ ...value, amount }))}
-              prefix="$"
-              min={1}
+              prefix={currencySymbol(locale, settings.currencyCode)}
+              min={amountBounds.min}
+              max={amountBounds.max}
+              step={amountBounds.step}
+              fractionDigits={settings.currencyExponent}
               required
+              error={amountError(occurrenceForm.amount, occurrenceAmountMinor)}
               amount
             />
             <SelectField
-              label="分類"
+              label={messages.common.category}
               value={occurrenceForm.categoryId ? String(occurrenceForm.categoryId) : ""}
               onValueChange={(value) =>
                 setOccurrenceForm((current) => ({
@@ -359,7 +379,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
               disabled={occurrenceCategories.isPending}
             />
             <TextField
-              label="標題（選填）"
+              label={messages.common.optionalTitle}
               value={occurrenceForm.title}
               maxLength={80}
               onChange={(event) =>
@@ -367,7 +387,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
               }
             />
             <TextField
-              label="發生時間"
+              label={messages.recurring.occurredAt}
               type="datetime-local"
               value={occurrenceForm.occurredAt}
               onChange={(event) =>
@@ -383,9 +403,9 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                 fullWidth
                 type="submit"
                 loading={confirm.isPending}
-                disabled={!occurrenceForm.categoryId || Number(occurrenceForm.amount) <= 0}
+                disabled={!occurrenceForm.categoryId || occurrenceAmountMinor === undefined}
               >
-                調整並確認
+                {messages.recurring.adjustAndConfirm}
               </Button>
             </div>
           </form>
@@ -394,8 +414,8 @@ export function RecurringPage({ settings }: { settings: Settings }) {
 
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>需要確認</h2>
-          <Chip>{pending.data.length} 項</Chip>
+          <h2>{messages.recurring.needsConfirmation}</h2>
+          <Chip>{messages.recurring.itemCount(pending.data.length)}</Chip>
         </div>
         {pending.data.length ? (
           <Card padded={false}>
@@ -413,6 +433,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                 <MoneyText
                   amount={item.amountMinor}
                   currency={item.currencyCode}
+                  exponent={settings.currencyExponent}
                   kind={item.kind}
                 />
                 <div className={styles.actions}>
@@ -422,18 +443,18 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                     loading={confirm.isPending}
                     onClick={() => confirm.mutate({ id: item.id, override: {} })}
                   >
-                    確認
+                    {messages.recurring.confirm}
                   </Button>
                   <ActionMenu
                     items={[
                       {
-                        label: "調整這一次",
+                        label: messages.recurring.adjustOccurrence,
                         icon: "edit",
                         disabled: confirm.isPending,
                         onSelect: () => beginOccurrenceEdit(item),
                       },
                       {
-                        label: "略過這一次",
+                        label: messages.recurring.skipOccurrence,
                         icon: "close",
                         danger: true,
                         disabled: skip.isPending,
@@ -446,13 +467,15 @@ export function RecurringPage({ settings }: { settings: Settings }) {
             ))}
           </Card>
         ) : (
-          <EmptyState title="沒有待處理項目">到期的週期收入與支出會在這裡等待你確認。</EmptyState>
+          <EmptyState title={messages.recurring.emptyPendingTitle}>
+            {messages.recurring.emptyPendingBody}
+          </EmptyState>
         )}
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>規則</h2>
+          <h2>{messages.recurring.rules}</h2>
         </div>
         {rules.data.length ? (
           <Card padded={false}>
@@ -464,25 +487,35 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                 <div className={styles.rowGrow}>
                   <strong>{rule.title || rule.category.name}</strong>
                   <small>
-                    每 {rule.intervalCount}{" "}
-                    {rule.frequency === "weekly"
-                      ? "週"
-                      : rule.frequency === "monthly"
-                        ? "月"
-                        : "年"}{" "}
-                    · 下次 {rule.nextDueOn} · {rule.enabled ? "啟用" : "停用"}
+                    {messages.recurring.ruleSummary(
+                      rule.intervalCount,
+                      rule.frequency === "weekly"
+                        ? messages.common.week
+                        : rule.frequency === "monthly"
+                          ? messages.common.month
+                          : messages.common.year,
+                      rule.nextDueOn,
+                      rule.enabled,
+                    )}
                   </small>
                 </div>
                 <MoneyText
                   amount={rule.amountMinor}
                   currency={rule.currencyCode}
+                  exponent={settings.currencyExponent}
                   kind={rule.kind}
                 />
                 <ActionMenu
                   items={[
-                    { label: "編輯規則", icon: "edit", onSelect: () => beginEdit(rule) },
                     {
-                      label: rule.enabled ? "停用規則" : "啟用規則",
+                      label: messages.recurring.editRuleAction,
+                      icon: "edit",
+                      onSelect: () => beginEdit(rule),
+                    },
+                    {
+                      label: rule.enabled
+                        ? messages.recurring.disableRule
+                        : messages.recurring.enableRule,
                       icon: rule.enabled ? "close" : "check",
                       onSelect: () =>
                         stateRule.mutate({
@@ -491,7 +524,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                         }),
                     },
                     {
-                      label: "封存規則",
+                      label: messages.recurring.archiveRule,
                       icon: "archive",
                       danger: true,
                       separatorBefore: true,
@@ -504,22 +537,22 @@ export function RecurringPage({ settings }: { settings: Settings }) {
           </Card>
         ) : (
           <EmptyState
-            title="還沒有週期規則"
+            title={messages.recurring.emptyRulesTitle}
             action={
               <Button variant="outlined" onClick={beginNewRule}>
                 <Icon name="add" size={20} />
-                建立第一個規則
+                {messages.recurring.createFirstRule}
               </Button>
             }
           >
-            房租、薪資或訂閱可建立為需要確認的週期項目。
+            {messages.recurring.emptyRulesBody}
           </EmptyState>
         )}
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>未來 30 天</h2>
+          <h2>{messages.recurring.nextThirtyDays}</h2>
         </div>
         {preview.data.length ? (
           <div className={styles.list}>
@@ -533,20 +566,23 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                 </span>
                 <span className={styles.rowMain}>
                   <span className={styles.rowTitle}>{item.title || item.category.name}</span>
-                  <span className={styles.rowMeta}>{item.scheduledOn} · 預計，尚未記帳</span>
+                  <span className={styles.rowMeta}>
+                    {messages.recurring.previewMeta(item.scheduledOn)}
+                  </span>
                 </span>
                 <MoneyText
                   className={styles.rowAmount}
                   amount={item.amountMinor}
                   currency={item.currencyCode}
+                  exponent={settings.currencyExponent}
                   kind={item.kind}
                 />
               </div>
             ))}
           </div>
         ) : (
-          <EmptyState title="未來 30 天沒有預計項目">
-            啟用中的規則會在這裡顯示預覽，但不會計入儀表板。
+          <EmptyState title={messages.recurring.emptyPreviewTitle}>
+            {messages.recurring.emptyPreviewBody}
           </EmptyState>
         )}
       </section>

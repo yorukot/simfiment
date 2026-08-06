@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"simfiment/internal/domain"
+	"simfiment/internal/i18n"
 )
 
 type successEnvelope struct {
@@ -42,7 +43,7 @@ func (a *API) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	requestID := requestIDFrom(r.Context())
 	var typed *domain.Error
 	if errors.As(err, &typed) {
-		a.writeAPIError(w, typed.Status, typed.Code, typed.Message, typed.Fields, requestID)
+		a.writeAPIError(w, r, typed.Status, typed.Code, typed.Message, typed.Fields, requestID)
 		return
 	}
 	var internalErr *domain.InternalError
@@ -51,14 +52,17 @@ func (a *API) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	} else {
 		a.logger.Error("request failed", "request_id", requestID, "error", err)
 	}
-	a.writeAPIError(w, http.StatusInternalServerError, "internal_error", "發生未預期的錯誤，請稍後再試。", nil, requestID)
+	a.writeAPIError(w, r, http.StatusInternalServerError, "internal_error", "發生未預期的錯誤，請稍後再試。", nil, requestID)
 }
 
-func (a *API) writeAPIError(w http.ResponseWriter, status int, code, message string, fields map[string]string, requestID string) {
+func (a *API) writeAPIError(w http.ResponseWriter, r *http.Request, status int, code, message string, fields map[string]string, requestID string) {
+	locale := i18n.Negotiate(r.Header.Get("Accept-Language"))
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Language", string(locale))
+	w.Header().Add("Vary", "Accept-Language")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(errorEnvelope{Error: errorBody{
-		Code: code, Message: message, Fields: fields, RequestID: requestID,
+		Code: code, Message: i18n.Text(locale, message), Fields: i18n.Fields(locale, fields), RequestID: requestID,
 	}})
 }
 

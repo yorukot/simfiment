@@ -4,12 +4,15 @@ import { api } from "../../api/client";
 import type { MonthlyDashboard, Settings, Transaction } from "../../api/types";
 import { EmptyState, ErrorState, PageLoading } from "../../components/States";
 import { addMonths, formatMonth, monthInTimezone } from "../../lib/date";
+import { formatMoneyMinor } from "../../lib/money";
 import { TransactionRow } from "../transactions/TransactionRow";
 import { CategoryBars, Summary } from "./DashboardParts";
 import { Button, Chip, IconButton } from "../../components/ui";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
 export function MonthPage({ settings }: { settings: Settings }) {
+  const { locale, messages } = useI18n();
   const params = useParams();
   const navigate = useNavigate();
   const current = monthInTimezone(settings.timezone);
@@ -42,45 +45,50 @@ export function MonthPage({ settings }: { settings: Settings }) {
     <>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>每月回顧</p>
-          <h1>{formatMonth(month)}</h1>
+          <p className={styles.eyebrow}>{messages.dashboard.monthlyReview}</p>
+          <h1>{formatMonth(month, locale)}</h1>
           <p>
-            <Chip>{dashboard.data.totals.transactionCount} 筆交易</Chip>
+            <Chip>{messages.common.transactionCount(dashboard.data.totals.transactionCount)}</Chip>
           </p>
         </div>
       </header>
-      <div className={styles.dateNavigator} aria-label="月份導覽">
+      <div className={styles.dateNavigator} aria-label={messages.dashboard.monthNavigation}>
         <IconButton
           variant="outlined"
           icon="chevronLeft"
-          label="上個月"
+          label={messages.dashboard.previousMonth}
           onClick={() => go(addMonths(month, -1))}
         />
         {month !== current ? (
           <Button variant="outlined" type="button" onClick={() => go(current)}>
-            本月
+            {messages.dashboard.currentMonth}
           </Button>
         ) : (
-          <Chip>本月</Chip>
+          <Chip>{messages.dashboard.currentMonth}</Chip>
         )}
         <IconButton
           variant="outlined"
           icon="chevronRight"
-          label="下個月"
+          label={messages.dashboard.nextMonth}
           onClick={() => go(addMonths(month, 1))}
         />
       </div>
       <section className={styles.section}>
-        <Summary totals={dashboard.data.totals} currency={dashboard.data.currencyCode} />
+        <Summary
+          totals={dashboard.data.totals}
+          currency={dashboard.data.currencyCode}
+          exponent={settings.currencyExponent}
+        />
       </section>
       {dashboard.data.expenseCategories.length ? (
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
-            <h2>支出分布</h2>
+            <h2>{messages.dashboard.expenseDistribution}</h2>
           </div>
           <CategoryBars
             items={dashboard.data.expenseCategories}
             currency={dashboard.data.currencyCode}
+            exponent={settings.currencyExponent}
             kind="expense"
           />
         </section>
@@ -88,29 +96,44 @@ export function MonthPage({ settings }: { settings: Settings }) {
       {dashboard.data.incomeCategories.length ? (
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
-            <h2>收入分布</h2>
+            <h2>{messages.dashboard.incomeDistribution}</h2>
           </div>
           <CategoryBars
             items={dashboard.data.incomeCategories}
             currency={dashboard.data.currencyCode}
+            exponent={settings.currencyExponent}
             kind="income"
           />
         </section>
       ) : null}
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>每日收支</h2>
+          <h2>{messages.dashboard.dailyActivity}</h2>
         </div>
         <div
           className={styles.activityGrid}
           role="img"
-          aria-label={`${formatMonth(month)}每日收入與支出長條圖`}
+          aria-label={messages.dashboard.dailyChartLabel(formatMonth(month, locale))}
         >
           {dashboard.data.dailySeries.map((point) => (
             <div
               key={point.date}
               className={styles.activityDay}
-              title={`${point.date}: 收入 NT$ ${point.incomeMinor.toLocaleString("zh-TW")}，支出 NT$ ${point.expenseMinor.toLocaleString("zh-TW")}`}
+              title={messages.dashboard.dailyChartPoint(
+                point.date,
+                formatMoneyMinor(
+                  point.incomeMinor,
+                  dashboard.data.currencyCode,
+                  settings.currencyExponent,
+                  locale,
+                ),
+                formatMoneyMinor(
+                  point.expenseMinor,
+                  dashboard.data.currencyCode,
+                  settings.currencyExponent,
+                  locale,
+                ),
+              )}
             >
               <span
                 className={`${styles.activityBar} ${styles.activityIncome}`}
@@ -128,32 +151,50 @@ export function MonthPage({ settings }: { settings: Settings }) {
           ))}
         </div>
         <div className={styles.activityLegend}>
-          <span>收入</span>
-          <span>支出</span>
-          <span>每組代表一天；完整數值另列供輔助技術讀取</span>
+          <span>{messages.common.income}</span>
+          <span>{messages.common.expense}</span>
+          <span>{messages.dashboard.dailyChartDescription}</span>
         </div>
         <ul className={styles.srOnly}>
           {dashboard.data.dailySeries.map((point) => (
             <li key={point.date}>
-              {point.date}：收入 NT$ {point.incomeMinor.toLocaleString("zh-TW")}，支出 NT${" "}
-              {point.expenseMinor.toLocaleString("zh-TW")}
+              {messages.dashboard.dailyChartPoint(
+                point.date,
+                formatMoneyMinor(
+                  point.incomeMinor,
+                  dashboard.data.currencyCode,
+                  settings.currencyExponent,
+                  locale,
+                ),
+                formatMoneyMinor(
+                  point.expenseMinor,
+                  dashboard.data.currencyCode,
+                  settings.currencyExponent,
+                  locale,
+                ),
+              )}
             </li>
           ))}
         </ul>
       </section>
       <section className={styles.section}>
         <div className={styles.sectionTitle}>
-          <h2>本月交易</h2>
+          <h2>{messages.dashboard.monthlyTransactions}</h2>
         </div>
         {transactions.data.length ? (
           <div className={styles.list}>
             {transactions.data.map((item) => (
-              <TransactionRow key={item.id} transaction={item} timezone={settings.timezone} />
+              <TransactionRow
+                key={item.id}
+                transaction={item}
+                timezone={settings.timezone}
+                currencyExponent={settings.currencyExponent}
+              />
             ))}
           </div>
         ) : (
-          <EmptyState title="這個月還沒有交易">
-            實際確認的收入與支出會顯示在這裡，待處理週期項目不會計入。
+          <EmptyState title={messages.dashboard.emptyMonthTitle}>
+            {messages.dashboard.emptyMonthBody}
           </EmptyState>
         )}
       </section>

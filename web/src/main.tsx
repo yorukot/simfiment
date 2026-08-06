@@ -7,18 +7,23 @@ import { App } from "./app/App";
 import { queryClient } from "./app/queryClient";
 import { ToastProvider } from "./components/Toast/ToastProvider";
 import { UIProvider } from "./components/ui";
+import { I18nProvider, initializeLocale } from "./i18n";
 import "./styles/global.css";
+
+initializeLocale();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <UIProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </UIProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <UIProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </UIProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </I18nProvider>
   </StrictMode>,
 );

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"simfiment/internal/domain"
+	"simfiment/internal/i18n"
 )
 
 // DBTX is implemented by both sql.DB and sql.Tx.
@@ -19,6 +20,11 @@ type DBTX interface {
 
 // Store is the database access layer.
 type Store struct{ q DBTX }
+
+var (
+	ErrCurrencyWouldZero = errors.New("currency conversion would produce a zero amount")
+	ErrCurrencyOverflow  = errors.New("currency conversion would exceed the amount limit")
+)
 
 // New creates a store backed by a database or transaction.
 func New(q DBTX) *Store { return &Store{q: q} }
@@ -74,18 +80,13 @@ func (s *Store) InsertSetup(ctx context.Context, settings domain.Settings, passw
 	) VALUES (1, ?, 1, ?, ?)`, passwordHash, nowMS, nowMS); err != nil {
 		return fmt.Errorf("insert credential: %w", err)
 	}
-	expense := []struct{ name, icon string }{
-		{"飲食", "food"}, {"交通", "transport"}, {"購物", "shopping"}, {"居家", "home"},
-		{"娛樂", "entertainment"}, {"健康", "health"}, {"教育", "education"}, {"訂閱", "subscription"}, {"其他", "other"},
-	}
-	income := []struct{ name, icon string }{
-		{"薪資", "salary"}, {"獎金", "bonus"}, {"接案", "freelance"}, {"利息", "interest"}, {"退款", "refund"}, {"其他", "other"},
-	}
-	for kind, categories := range map[string][]struct{ name, icon string }{"expense": expense, "income": income} {
+	locale, _ := i18n.Normalize(settings.Locale)
+	expense, income := i18n.DefaultCategories(locale)
+	for kind, categories := range map[string][]i18n.CategorySeed{"expense": expense, "income": income} {
 		for i, category := range categories {
 			if _, err := s.q.ExecContext(ctx, `INSERT INTO categories(
 				kind, name, icon_key, sort_order, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?)`, kind, category.name, category.icon, i, nowMS, nowMS); err != nil {
+			) VALUES (?, ?, ?, ?, ?, ?)`, kind, category.Name, category.Icon, i, nowMS, nowMS); err != nil {
 				return fmt.Errorf("insert default %s category: %w", kind, err)
 			}
 		}
@@ -114,12 +115,79 @@ func (s *Store) GetSettings(ctx context.Context) (domain.Settings, error) {
 }
 
 // UpdateSettings updates mutable installation preferences.
-func (s *Store) UpdateSettings(ctx context.Context, theme string, automatic bool, timezone, locale string, now time.Time) error {
+func (s *Store) UpdateSettings(ctx context.Context, theme string, automatic bool, timezone, locale,
+	currencyCode string, currencyExponent int, now time.Time) error {
 	_, err := s.q.ExecContext(ctx, `UPDATE app_settings SET theme = ?, automatic_location_enabled = ?,
-		timezone = ?, locale = ?, updated_at = ? WHERE id = 1`,
-		theme, boolInt(automatic), timezone, locale, now.UTC().UnixMilli())
+		timezone = ?, locale = ?, currency_code = ?, currency_exponent = ?, updated_at = ? WHERE id = 1`,
+		theme, boolInt(automatic), timezone, locale, currencyCode, currencyExponent, now.UTC().UnixMilli())
 	if err != nil {
 		return fmt.Errorf("update settings: %w", err)
+	}
+	return nil
+}
+
+// RewriteCurrency reinterprets every persisted financial amount using a new
+// exponent and code. The caller is responsible for wrapping this in the same
+// transaction as the app_settings update.
+func (s *Store) RewriteCurrency(ctx context.Context, code string, oldExponent, newExponent int, now time.Time) error {
+	type target struct {
+		table, amountColumn, currencyColumn string
+	}
+	targets := []target{
+		{"transactions", "amount_minor", "currency_code"},
+		{"recurring_rules", "amount_minor", "currency_code"},
+		{"recurring_occurrences", "amount_minor_snapshot", "currency_snapshot"},
+	}
+	factor := int64(1)
+	difference := newExponent - oldExponent
+	if difference < 0 {
+		difference = -difference
+	}
+	for range difference {
+		factor *= 10
+	}
+
+	if newExponent > oldExponent {
+		limit := domain.MaxAmountMinor / factor
+		for _, item := range targets {
+			var blocked bool
+			query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s > ?)", item.table, item.amountColumn)
+			if err := s.q.QueryRowContext(ctx, query, limit).Scan(&blocked); err != nil {
+				return fmt.Errorf("check %s currency overflow: %w", item.table, err)
+			}
+			if blocked {
+				return ErrCurrencyOverflow
+			}
+		}
+	} else if newExponent < oldExponent {
+		for _, item := range targets {
+			var blocked bool
+			query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s < ?)", item.table, item.amountColumn)
+			if err := s.q.QueryRowContext(ctx, query, factor).Scan(&blocked); err != nil {
+				return fmt.Errorf("check %s zero currency amount: %w", item.table, err)
+			}
+			if blocked {
+				return ErrCurrencyWouldZero
+			}
+		}
+	}
+
+	nowMS := now.UTC().UnixMilli()
+	for _, item := range targets {
+		expression := item.amountColumn
+		args := []any{code, nowMS}
+		if newExponent > oldExponent {
+			expression += " * ?"
+			args = []any{factor, code, nowMS}
+		} else if newExponent < oldExponent {
+			expression += " / ?"
+			args = []any{factor, code, nowMS}
+		}
+		query := fmt.Sprintf("UPDATE %s SET %s = %s, %s = ?, updated_at = ?",
+			item.table, item.amountColumn, expression, item.currencyColumn)
+		if _, err := s.q.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf("rewrite %s currency: %w", item.table, err)
+		}
 	}
 	return nil
 }

@@ -1,5 +1,6 @@
 import type { EntryLocation } from "../../api/types";
 import styles from "../../styles/ui.module.css";
+import { useI18n } from "../../i18n";
 
 const MAP_SPAN_DEGREES = 0.004;
 
@@ -27,28 +28,29 @@ export function openStreetMapURLs(location: EntryLocation) {
 }
 
 export function OpenStreetMapLocation({ location }: { location: EntryLocation }) {
+  const { messages } = useI18n();
   const urls = openStreetMapURLs(location);
   return (
     <section className={styles.locationMap} aria-labelledby="transaction-location-map-title">
       <div className={styles.locationMapHeader}>
         <div>
-          <strong id="transaction-location-map-title">輸入位置地圖</strong>
-          <span>標記為記帳當下的位置</span>
+          <strong id="transaction-location-map-title">{messages.map.title}</strong>
+          <span>{messages.map.description}</span>
         </div>
         <a href={urls.details} target="_blank" rel="noreferrer">
-          在 OpenStreetMap 開啟 <span aria-hidden="true">↗</span>
+          {messages.map.open} <span aria-hidden="true">↗</span>
         </a>
       </div>
       <iframe
         className={styles.locationMapFrame}
         src={urls.embed}
-        title="交易輸入位置的 OpenStreetMap 地圖"
+        title={messages.map.frameTitle}
         loading="lazy"
       />
       <p className={styles.mapAttribution}>
-        地圖資料 ©{" "}
+        {messages.map.attribution}{" "}
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-          OpenStreetMap 貢獻者
+          {messages.map.contributors}
         </a>
       </p>
     </section>

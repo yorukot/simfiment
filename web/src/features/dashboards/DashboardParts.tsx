@@ -1,35 +1,48 @@
 import type { CategoryTotal, Totals } from "../../api/types";
 import { MoneyText } from "../../components/MoneyText";
 import { CategoryIcon } from "../../components/ui";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
-export function Summary({ totals, currency }: { totals: Totals; currency: string }) {
+export function Summary({
+  totals,
+  currency,
+  exponent = 0,
+}: {
+  totals: Totals;
+  currency: string;
+  exponent?: number;
+}) {
+  const { messages } = useI18n();
   return (
     <div className={styles.summaryGrid}>
       <div className={`${styles.summaryCard} ${styles.summaryIncome}`}>
-        <span className={styles.summaryLabel}>收入</span>
+        <span className={styles.summaryLabel}>{messages.common.income}</span>
         <MoneyText
           className={styles.summaryValue}
           amount={totals.incomeMinor}
           currency={currency}
+          exponent={exponent}
           kind="income"
         />
       </div>
       <div className={`${styles.summaryCard} ${styles.summaryExpense}`}>
-        <span className={styles.summaryLabel}>支出</span>
+        <span className={styles.summaryLabel}>{messages.common.expense}</span>
         <MoneyText
           className={styles.summaryValue}
           amount={totals.expenseMinor}
           currency={currency}
+          exponent={exponent}
           kind="expense"
         />
       </div>
       <div className={`${styles.summaryCard} ${styles.summaryNet}`}>
-        <span className={styles.summaryLabel}>淨額</span>
+        <span className={styles.summaryLabel}>{messages.common.net}</span>
         <MoneyText
           className={styles.summaryValue}
           amount={totals.netMinor}
           currency={currency}
+          exponent={exponent}
           kind="net"
         />
       </div>
@@ -40,10 +53,12 @@ export function Summary({ totals, currency }: { totals: Totals; currency: string
 export function CategoryBars({
   items,
   currency,
+  exponent = 0,
   kind,
 }: {
   items: CategoryTotal[];
   currency: string;
+  exponent?: number;
   kind: "income" | "expense";
 }) {
   const total = items.reduce((sum, item) => sum + item.amountMinor, 0);
@@ -62,6 +77,7 @@ export function CategoryBars({
                 <MoneyText
                   amount={item.amountMinor}
                   currency={currency}
+                  exponent={exponent}
                   kind={kind}
                   showSign={false}
                 />

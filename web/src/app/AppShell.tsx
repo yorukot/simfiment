@@ -8,17 +8,28 @@ import { SettingsPage } from "../features/settings/SettingsPage";
 import { TransactionDetails } from "../features/transactions/TransactionDetails";
 import { TransactionEntry } from "../features/transactions/TransactionEntry";
 import { Button, Icon, type IconName } from "../components/ui";
+import { useI18n } from "../i18n";
 import styles from "../styles/ui.module.css";
 
-const navigation = [
-  { to: "/today", label: "今天", icon: "today" },
-  { to: "/month", label: "月份", icon: "calendar" },
-  { to: "/recurring", label: "週期", icon: "repeat" },
-  { to: "/settings", label: "設定", icon: "settings" },
-] satisfies Array<{ to: string; label: string; icon: IconName }>;
-
 export function AppShell({ session, meta }: { session: Session; meta: Meta }) {
+  const { messages } = useI18n();
   const [entryOpen, setEntryOpen] = useState(false);
+  const navigation = [
+    { to: "/today", label: messages.nav.today, compactLabel: messages.nav.today, icon: "today" },
+    { to: "/month", label: messages.nav.month, compactLabel: messages.nav.month, icon: "calendar" },
+    {
+      to: "/recurring",
+      label: messages.nav.recurring,
+      compactLabel: messages.nav.recurringCompact,
+      icon: "repeat",
+    },
+    {
+      to: "/settings",
+      label: messages.nav.settings,
+      compactLabel: messages.nav.settings,
+      icon: "settings",
+    },
+  ] satisfies Array<{ to: string; label: string; compactLabel: string; icon: IconName }>;
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -51,7 +62,7 @@ export function AppShell({ session, meta }: { session: Session; meta: Meta }) {
           />
           <span className={styles.brandName}>SIMFIMENT</span>
         </div>
-        <nav className={styles.sidebarNav} aria-label="主要導覽">
+        <nav className={styles.sidebarNav} aria-label={messages.nav.primary}>
           {navigation.map((item) => (
             <NavLink
               key={item.to}
@@ -71,10 +82,10 @@ export function AppShell({ session, meta }: { session: Session; meta: Meta }) {
           className={styles.sidebarAdd}
           type="button"
           onClick={() => setEntryOpen(true)}
-          aria-label="記錄交易"
+          aria-label={messages.nav.recordTransaction}
         >
           <Icon name="add" />
-          <span className={styles.sidebarAddLabel}>記錄交易</span>
+          <span className={styles.sidebarAddLabel}>{messages.nav.recordTransaction}</span>
         </Button>
       </aside>
       <main className={styles.main}>
@@ -110,26 +121,26 @@ export function AppShell({ session, meta }: { session: Session; meta: Meta }) {
             />
             <Route
               path="/transactions/:id"
-              element={<TransactionDetails timezone={session.settings.timezone} />}
+              element={<TransactionDetails settings={session.settings} />}
             />
             <Route path="*" element={<Navigate to="/today" replace />} />
           </Routes>
         </div>
       </main>
-      <nav className={styles.bottomNav} aria-label="主要導覽">
+      <nav className={styles.bottomNav} aria-label={messages.nav.primary}>
         {navigation.slice(0, 2).map((item) => (
           <MobileLink key={item.to} {...item} />
         ))}
         <button
           className={styles.bottomAdd}
           type="button"
-          aria-label="記錄交易"
+          aria-label={messages.nav.recordTransaction}
           onClick={() => setEntryOpen(true)}
         >
           <strong>
             <Icon name="add" />
           </strong>
-          <span>記一筆</span>
+          <span>{messages.nav.addCompact}</span>
         </button>
         {navigation.slice(2).map((item) => (
           <MobileLink key={item.to} {...item} />
@@ -144,7 +155,16 @@ export function AppShell({ session, meta }: { session: Session; meta: Meta }) {
   );
 }
 
-function MobileLink({ to, label, icon }: { to: string; label: string; icon: IconName }) {
+function MobileLink({
+  to,
+  compactLabel,
+  icon,
+}: {
+  to: string;
+  label: string;
+  compactLabel: string;
+  icon: IconName;
+}) {
   return (
     <NavLink
       className={({ isActive }) => `${styles.bottomLink} ${isActive ? styles.navLinkActive : ""}`}
@@ -153,7 +173,7 @@ function MobileLink({ to, label, icon }: { to: string; label: string; icon: Icon
       <span className={styles.bottomIcon}>
         <Icon name={icon} />
       </span>
-      <span>{label}</span>
+      <span>{compactLabel}</span>
     </NavLink>
   );
 }

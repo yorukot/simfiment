@@ -10,11 +10,17 @@ export type Settings = {
   automaticLocationEnabled: boolean;
 };
 
+export type CurrencyDefinition = {
+  code: string;
+  exponent: number;
+};
+
 export type Meta = {
   name: string;
   version: string;
   initialized: boolean;
   defaultLocale: string;
+  currencies: CurrencyDefinition[];
 };
 
 export type Session = {

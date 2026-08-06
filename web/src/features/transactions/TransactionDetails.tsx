@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, errorMessage } from "../../api/client";
-import type { Category, Kind, Transaction } from "../../api/types";
+import type { Category, Kind, Settings, Transaction } from "../../api/types";
 import { MoneyText } from "../../components/MoneyText";
 import { ErrorState, PageLoading } from "../../components/States";
 import { useToast } from "../../components/Toast/ToastProvider";
@@ -16,15 +16,19 @@ import {
   TextField,
 } from "../../components/ui";
 import { dateTimeInputInTimezone, zonedLocalToISO } from "../../lib/date";
+import { currencySymbol, majorToMinor, minorToMajorInput, moneyInputBounds } from "../../lib/money";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 import { OpenStreetMapLocation } from "./OpenStreetMapLocation";
 import { invalidateTransactionQueries } from "./TransactionEntry";
 
-export function TransactionDetails({ timezone }: { timezone: string }) {
+export function TransactionDetails({ settings }: { settings: Settings }) {
+  const timezone = settings.timezone;
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { locale, messages } = useI18n();
   const transaction = useQuery({
     queryKey: ["transaction", id],
     queryFn: ({ signal }) => api.get<Transaction>(`/api/v1/transactions/${id}`, signal),
@@ -45,16 +49,16 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
   useEffect(() => {
     if (!transaction.data) return;
     setKind(transaction.data.kind);
-    setAmount(String(transaction.data.amountMinor));
+    setAmount(minorToMajorInput(transaction.data.amountMinor, settings.currencyExponent));
     setCategoryId(transaction.data.category.id);
     setTitle(transaction.data.title);
     setOccurredAt(dateTimeInputInTimezone(new Date(transaction.data.occurredAt), timezone));
-  }, [timezone, transaction.data]);
+  }, [settings.currencyExponent, timezone, transaction.data]);
   const edit = useMutation({
     mutationFn: () =>
       api.patch(`/api/v1/transactions/${id}`, {
         kind,
-        amountMinor: Number(amount),
+        amountMinor: majorToMinor(amount, settings.currencyExponent) ?? 0,
         categoryId,
         title,
         occurredAt: zonedLocalToISO(occurredAt, timezone),
@@ -63,7 +67,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
       queryClient.setQueryData(["transaction", id], item);
       await invalidateTransactionQueries(queryClient);
       setEditing(false);
-      showToast({ message: "交易已更新。" });
+      showToast({ message: messages.transactionDetails.updated });
     },
   });
   const remove = useMutation({
@@ -72,8 +76,8 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
       queryClient.setQueryData(["transaction", id], item);
       await invalidateTransactionQueries(queryClient);
       showToast({
-        message: "交易已刪除。",
-        actionLabel: "復原",
+        message: messages.transactionDetails.deleted,
+        actionLabel: messages.common.restore,
         onAction: async () => {
           const restored = await api.post(`/api/v1/transactions/${id}/restore`, {});
           queryClient.setQueryData(["transaction", id], restored);
@@ -88,7 +92,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
     onSuccess: async (item) => {
       queryClient.setQueryData(["transaction", id], item);
       await invalidateTransactionQueries(queryClient);
-      showToast({ message: "交易已還原。" });
+      showToast({ message: messages.transactionDetails.restored });
     },
   });
   const removeLocation = useMutation({
@@ -96,7 +100,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
     onSuccess: async (item) => {
       queryClient.setQueryData(["transaction", id], item);
       await invalidateTransactionQueries(queryClient);
-      showToast({ message: "輸入位置已移除。" });
+      showToast({ message: messages.transactionDetails.locationRemoved });
     },
   });
   const retryLocation = useMutation({
@@ -151,16 +155,21 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
       queryClient.setQueryData(["transaction", id], updated);
       await invalidateTransactionQueries(queryClient);
       showToast({
-        message: attached ? "已附上輸入位置。" : "目前無法取得位置，交易內容未受影響。",
+        message: attached
+          ? messages.transactionDetails.locationAttached
+          : messages.transactionDetails.locationUnavailable,
       });
     },
   });
-  if (!/^\d+$/.test(id)) return <ErrorState error={new Error("交易識別碼無效。")} />;
+  if (!/^\d+$/.test(id))
+    return <ErrorState error={new Error(messages.transactionDetails.invalidId)} />;
   if (transaction.isPending) return <PageLoading />;
   if (transaction.isError)
     return <ErrorState error={transaction.error} onRetry={() => void transaction.refetch()} />;
   const item = transaction.data;
-  const occurred = new Intl.DateTimeFormat("zh-TW", {
+  const amountMinor = majorToMinor(amount, settings.currencyExponent);
+  const amountBounds = moneyInputBounds(settings.currencyExponent);
+  const occurred = new Intl.DateTimeFormat(locale, {
     dateStyle: "long",
     timeStyle: "short",
     timeZone: timezone,
@@ -179,7 +188,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
     <>
       <header className={styles.pageHeader}>
         <div>
-          <p className={styles.eyebrow}>交易明細</p>
+          <p className={styles.eyebrow}>{messages.transactionDetails.eyebrow}</p>
           <h1>{item.title || item.category.name}</h1>
           <p>
             {item.category.name} · {occurred}
@@ -187,11 +196,11 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
         </div>
         <Button variant="outlined" type="button" onClick={() => navigate(-1)}>
           <Icon name="chevronLeft" size={20} />
-          返回
+          {messages.transactionDetails.back}
         </Button>
       </header>
       {item.deletedAt ? (
-        <p className={styles.formError}>這筆交易已刪除，不會計入儀表板。你仍可在這裡還原。</p>
+        <p className={styles.formError}>{messages.transactionDetails.deletedNotice}</p>
       ) : null}
       {editing ? (
         <Card>
@@ -199,32 +208,43 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
             className={styles.form}
             onSubmit={(event: FormEvent) => {
               event.preventDefault();
-              edit.mutate();
+              if (amountMinor) edit.mutate();
             }}
           >
             <SegmentedControl
-              label="交易類型"
+              label={messages.common.transactionType}
               value={kind}
               onValueChange={(value) => {
                 setKind(value);
                 setCategoryId(undefined);
               }}
               options={[
-                { value: "expense", label: "支出" },
-                { value: "income", label: "收入" },
+                { value: "expense", label: messages.common.expense },
+                { value: "income", label: messages.common.income },
               ]}
             />
             <NumericField
-              label="金額"
+              label={messages.common.amount}
               value={amount}
               onValueChange={setAmount}
-              prefix="$"
-              min={1}
+              prefix={currencySymbol(locale, settings.currencyCode)}
+              min={amountBounds.min}
+              max={amountBounds.max}
+              step={amountBounds.step}
+              fractionDigits={settings.currencyExponent}
               required
+              error={
+                amount && amountMinor === undefined
+                  ? messages.common.invalidAmountForCurrency(
+                      settings.currencyCode,
+                      settings.currencyExponent,
+                    )
+                  : undefined
+              }
               amount
             />
             <SelectField
-              label="分類"
+              label={messages.common.category}
               value={categoryId ? String(categoryId) : ""}
               onValueChange={(value) => setCategoryId(Number(value) || undefined)}
               options={categoryOptions}
@@ -232,13 +252,13 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
               disabled={categories.isPending}
             />
             <TextField
-              label="標題（選填）"
+              label={messages.common.optionalTitle}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={80}
             />
             <TextField
-              label="日期與時間"
+              label={messages.common.dateTime}
               type="datetime-local"
               value={occurredAt}
               onChange={(event) => setOccurredAt(event.target.value)}
@@ -246,11 +266,15 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
             />
             {edit.error ? <p className={styles.formError}>{errorMessage(edit.error)}</p> : null}
             <div className={styles.actions}>
-              <Button type="submit" loading={edit.isPending} disabled={!categoryId}>
-                儲存變更
+              <Button
+                type="submit"
+                loading={edit.isPending}
+                disabled={!categoryId || amountMinor === undefined}
+              >
+                {messages.transactionDetails.saveChanges}
               </Button>
               <Button variant="text" type="button" onClick={() => setEditing(false)}>
-                取消
+                {messages.common.cancel}
               </Button>
             </div>
           </form>
@@ -258,38 +282,49 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
       ) : (
         <Card padded={false}>
           <dl className={styles.detailsGrid}>
-            <dt>金額</dt>
+            <dt>{messages.common.amount}</dt>
             <dd>
-              <MoneyText amount={item.amountMinor} currency={item.currencyCode} kind={item.kind} />
+              <MoneyText
+                amount={item.amountMinor}
+                currency={item.currencyCode}
+                exponent={settings.currencyExponent}
+                kind={item.kind}
+              />
             </dd>
-            <dt>分類</dt>
+            <dt>{messages.common.category}</dt>
             <dd>
               {item.category.name}
-              {item.category.archivedAt ? "（已封存）" : ""}
+              {item.category.archivedAt ? ` (${messages.common.archived})` : ""}
             </dd>
-            <dt>標題</dt>
+            <dt>{messages.transactionDetails.title}</dt>
             <dd>{item.title || "—"}</dd>
-            <dt>發生時間</dt>
+            <dt>{messages.transactionDetails.occurredAt}</dt>
             <dd>{occurred}</dd>
-            <dt>來源</dt>
-            <dd>{item.source === "manual" ? "手動記錄" : "週期確認"}</dd>
-            <dt>輸入位置</dt>
+            <dt>{messages.transactionDetails.source}</dt>
+            <dd>
+              {item.source === "manual"
+                ? messages.transactionDetails.manualSource
+                : messages.transactionDetails.recurringSource}
+            </dd>
+            <dt>{messages.transactionDetails.entryLocation}</dt>
             <dd>
               {item.location ? (
                 <>
                   {item.location.latitude.toFixed(5)}, {item.location.longitude.toFixed(5)}
                   {item.location.accuracyM ? (
                     <small className={styles.locationAccuracy}>
-                      約 ±{Math.round(item.location.accuracyM)} 公尺
+                      {messages.transactionDetails.approximateMeters(
+                        Math.round(item.location.accuracyM),
+                      )}
                     </small>
                   ) : null}
                 </>
               ) : item.locationStatus === "pending" ? (
-                "擷取中"
+                messages.transactionDetails.locationPending
               ) : item.locationStatus === "failed" ? (
-                "擷取失敗"
+                messages.transactionDetails.locationFailed
               ) : (
-                "未附上"
+                messages.transactionDetails.locationNone
               )}
             </dd>
           </dl>
@@ -303,7 +338,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
               <>
                 <Button variant="outlined" type="button" onClick={() => setEditing(true)}>
                   <Icon name="edit" size={19} />
-                  編輯交易
+                  {messages.transactionDetails.edit}
                 </Button>
                 {item.location ? (
                   <Button
@@ -312,7 +347,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
                     loading={removeLocation.isPending}
                     onClick={() => removeLocation.mutate()}
                   >
-                    移除輸入位置
+                    {messages.transactionDetails.removeLocation}
                   </Button>
                 ) : null}
                 {locationRetryEligible ? (
@@ -322,7 +357,7 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
                     loading={retryLocation.isPending}
                     onClick={() => retryLocation.mutate()}
                   >
-                    重試輸入位置
+                    {messages.transactionDetails.retryLocation}
                   </Button>
                 ) : null}
                 <Button
@@ -332,13 +367,13 @@ export function TransactionDetails({ timezone }: { timezone: string }) {
                   onClick={() => remove.mutate()}
                 >
                   <Icon name="delete" size={19} />
-                  刪除交易
+                  {messages.transactionDetails.delete}
                 </Button>
               </>
             ) : (
               <Button type="button" loading={restore.isPending} onClick={() => restore.mutate()}>
                 <Icon name="restore" size={19} />
-                還原交易
+                {messages.transactionDetails.restoreTransaction}
               </Button>
             )}
           </div>

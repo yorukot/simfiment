@@ -13,8 +13,6 @@ export default defineConfig({
         id: "/",
         name: "Simfiment",
         short_name: "Simfiment",
-        description: "簡單、安靜的個人財務管理",
-        lang: "zh-TW",
         dir: "ltr",
         start_url: "/today",
         scope: "/",

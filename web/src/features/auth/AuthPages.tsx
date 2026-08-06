@@ -4,6 +4,9 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { api, ApiError, errorMessage, setCSRFToken } from "../../api/client";
 import type { Meta, Session } from "../../api/types";
 import { Button, CheckboxField, TextField } from "../../components/ui";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
+import { CurrencyField } from "../../components/CurrencyField";
+import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
 type AuthResult = { authenticated: true; expiresAt: string; csrfToken: string };
@@ -25,10 +28,12 @@ function Brand() {
 }
 
 export function SetupPage({ meta }: { meta: Meta }) {
+  const { locale, messages } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("TWD");
   const [location, setLocation] = useState(false);
   const [localError, setLocalError] = useState("");
   const mutation = useMutation({
@@ -36,8 +41,8 @@ export function SetupPage({ meta }: { meta: Meta }) {
       api.post("/api/v1/setup", {
         password,
         timezone: "Asia/Taipei",
-        locale: "zh-TW",
-        currencyCode: "TWD",
+        locale,
+        currencyCode,
         automaticLocationEnabled: location,
       }) as Promise<AuthResult>,
     onSuccess: async (result) => {
@@ -52,7 +57,7 @@ export function SetupPage({ meta }: { meta: Meta }) {
     event.preventDefault();
     setLocalError("");
     if (password !== confirm) {
-      setLocalError("兩次輸入的密碼不同。 ");
+      setLocalError(messages.auth.passwordMismatch);
       return;
     }
     mutation.mutate();
@@ -61,15 +66,16 @@ export function SetupPage({ meta }: { meta: Meta }) {
   return (
     <main className={styles.authPage}>
       <section className={styles.authCard}>
+        <LanguageSwitcher className={styles.authLanguage} />
         <div className={styles.authIntro}>
           <Brand />
-          <p className={styles.eyebrow}>第一次設定</p>
-          <h1>建立你的私人帳本</h1>
-          <p>設定唯一的登入密碼即可開始使用。</p>
+          <p className={styles.eyebrow}>{messages.auth.firstSetup}</p>
+          <h1>{messages.auth.createLedger}</h1>
+          <p>{messages.auth.setupIntro}</p>
         </div>
         <form className={styles.form} onSubmit={submit}>
           <TextField
-            label="密碼"
+            label={messages.auth.password}
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -78,28 +84,35 @@ export function SetupPage({ meta }: { meta: Meta }) {
             minLength={12}
             maxLength={128}
             required
-            supportingText="至少 12 個字元；可使用空格與中文。"
+            supportingText={messages.auth.passwordHint}
             error={fields.password}
           />
           <TextField
-            label="確認密碼"
+            label={messages.auth.confirmPassword}
             type="password"
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
             autoComplete="new-password"
             required
           />
+          <CurrencyField
+            currencies={meta.currencies}
+            value={currencyCode}
+            onValueChange={setCurrencyCode}
+            error={fields.currencyCode}
+            disabled={mutation.isPending}
+          />
           <CheckboxField
             checked={location}
             onCheckedChange={setLocation}
-            label="自動附上輸入位置"
-            description="開啟記帳表單時才會向瀏覽器要求目前座標；儲存永遠不會等待位置。"
+            label={messages.auth.automaticLocation}
+            description={messages.auth.automaticLocationDescription}
           />
           {localError || mutation.error ? (
             <p className={styles.formError}>{localError || errorMessage(mutation.error)}</p>
           ) : null}
           <Button fullWidth size="large" type="submit" loading={mutation.isPending}>
-            完成設定
+            {messages.auth.finishSetup}
           </Button>
         </form>
       </section>
@@ -108,6 +121,7 @@ export function SetupPage({ meta }: { meta: Meta }) {
 }
 
 export function LoginPage({ session }: { session?: Session }) {
+  const { messages } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
@@ -123,11 +137,12 @@ export function LoginPage({ session }: { session?: Session }) {
   return (
     <main className={styles.authPage}>
       <section className={styles.authCard}>
+        <LanguageSwitcher className={styles.authLanguage} />
         <div className={styles.authIntro}>
           <Brand />
-          <p className={styles.eyebrow}>歡迎回來</p>
-          <h1>登入 Simfiment</h1>
-          <p>你的資料只保存在這個 Simfiment 安裝環境中。</p>
+          <p className={styles.eyebrow}>{messages.auth.welcomeBack}</p>
+          <h1>{messages.auth.loginTitle}</h1>
+          <p>{messages.auth.loginIntro}</p>
         </div>
         <form
           className={styles.form}
@@ -137,7 +152,7 @@ export function LoginPage({ session }: { session?: Session }) {
           }}
         >
           <TextField
-            label="密碼"
+            label={messages.auth.password}
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -155,7 +170,7 @@ export function LoginPage({ session }: { session?: Session }) {
             loading={mutation.isPending}
             disabled={!password}
           >
-            登入
+            {messages.auth.login}
           </Button>
         </form>
       </section>
