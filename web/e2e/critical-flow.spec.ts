@@ -310,6 +310,9 @@ test("fresh-install finance workflow", async ({ page }) => {
   await dismissNotifications(page);
   await page.getByRole("button", { name: "登出" }).click();
   await expect(page.getByRole("heading", { name: "登入 Simfiment" })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("simfiment.startup-snapshot")))
+    .toBeNull();
   await page.getByLabel("密碼").fill(replacementPassword);
   await page.getByRole("button", { name: "登入" }).click();
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
@@ -326,6 +329,9 @@ test("fresh-install finance workflow", async ({ page }) => {
   ).toBeVisible();
   await restoreDialog.getByRole("button", { name: "取代所有資料" }).click();
   await expect(page.getByRole("heading", { name: "登入 Simfiment" })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("simfiment.startup-snapshot")))
+    .toBeNull();
   await expect(page.getByText("備份已還原。請使用備份當時的密碼重新登入。")).toBeVisible();
   await page.getByLabel("密碼").fill(replacementPassword);
   await page.getByRole("button", { name: "登入" }).click();
@@ -335,6 +341,9 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
   await expect(page.getByText("E2E 備份後資料")).toHaveCount(0);
   await expect
+    .poll(() => page.evaluate(() => Boolean(localStorage.getItem("simfiment.startup-snapshot"))))
+    .toBe(true);
+  await expect
     .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
     .toBe(true);
   await page.context().setOffline(true);
@@ -342,9 +351,13 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect(
     page.getByText("目前離線或無法連到 Simfiment 伺服器；重新連線後請再試一次。"),
   ).toBeVisible();
+  await expect(page.getByText("E2E 小數幣別")).toBeVisible();
+  await expect(page.locator("[inert]")).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("status", { name: "載入中" })).toHaveCount(0);
   await page.context().setOffline(false);
   await page.getByRole("button", { name: "再試一次" }).click();
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
+  await expect(page.locator("[inert]")).toHaveCount(0);
   await page.setViewportSize({ width: 320, height: 720 });
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "200%";

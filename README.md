@@ -45,7 +45,7 @@ Vite 會將 `/api` 與 `/health` 代理到 `localhost:8080`，瀏覽器仍以同
 
 完成前端建置後，Simfiment 會提供 Web App Manifest、一般／maskable 圖示與 Service Worker。Android Chrome 可由瀏覽器選單選擇「安裝應用程式」，iPhone／iPad Safari 則由分享選單選擇「加入主畫面」。
 
-除 `localhost` 開發環境外，PWA 安裝與 Service Worker 需要 HTTPS。Service Worker 只預先快取應用程式殼層、樣式、程式碼與圖示；`/api` 帳本資料、登入回應及位置資料不會寫入 Cache Storage，因此離線時可啟動 App 並看到連線提示，但讀寫帳本仍需要連回 Simfiment 伺服器。
+除 `localhost` 開發環境外，PWA 安裝與 Service Worker 需要 HTTPS。Service Worker 只預先快取應用程式殼層、樣式、程式碼與圖示；`/api` 回應不會寫入 Cache Storage。為了讓同一天再次啟動時直接呈現 Today 畫面，前端會在瀏覽器的 `localStorage` 保存一份版本化的今日摘要與交易列表快照，但不保存 CSRF、Session Cookie 或精確位置座標。快照只在日期相符且 Session 尚未到期時呈現，登入重新驗證前維持唯讀，並在登出、驗證失敗或備份還原時清除；所有讀寫仍需連回 Simfiment 伺服器。
 
 ## 檢查與建置
 

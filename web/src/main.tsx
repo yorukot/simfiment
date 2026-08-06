@@ -5,12 +5,14 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./app/App";
 import { queryClient } from "./app/queryClient";
+import { hydrateStartupSnapshot } from "./app/startupSnapshot";
 import { ToastProvider } from "./components/Toast/ToastProvider";
 import { UIProvider } from "./components/ui";
 import { I18nProvider, initializeLocale } from "./i18n";
 import "./styles/global.css";
 
 initializeLocale();
+hydrateStartupSnapshot(queryClient);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -71,6 +71,10 @@ const zhTW = {
   states: {
     loading: "載入中",
     loadFailed: "目前無法載入",
+    checkingLatest: "正在確認最新資料…",
+    cachedReadOnly: (reason: string) =>
+      `目前顯示這台裝置上次載入的今日資料，確認登入前只能瀏覽。${reason}`,
+    cachedUpdateFailed: "目前顯示上次載入的資料，最新資料暫時無法取得。",
     requestId: (id: string) => `請求編號：${id}`,
     retry: "再試一次",
   },
@@ -414,6 +418,10 @@ const en: Messages = {
   states: {
     loading: "Loading",
     loadFailed: "Unable to load",
+    checkingLatest: "Checking for the latest data…",
+    cachedReadOnly: (reason: string) =>
+      `Showing today's data saved on this device. It is read-only until sign-in is verified. ${reason}`,
+    cachedUpdateFailed: "Showing the last loaded data because the latest data is unavailable.",
     requestId: (id: string) => `Request ID: ${id}`,
     retry: "Try again",
   },

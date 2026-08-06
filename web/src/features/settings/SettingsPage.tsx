@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, errorMessage, setCSRFToken } from "../../api/client";
 import type { Category, Kind, Meta, OperationsStatus, Session, Settings } from "../../api/types";
+import { clearStartupSnapshot } from "../../app/startupSnapshot";
 import { ErrorState, PageLoading } from "../../components/States";
 import { useToast } from "../../components/Toast/ToastProvider";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
@@ -103,6 +104,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   const logout = useMutation({
     mutationFn: () => api.delete("/api/v1/session"),
     onSuccess: async () => {
+      clearStartupSnapshot();
       await queryClient.clear();
       navigate("/login", { replace: true });
     },
@@ -115,6 +117,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
     mutationFn: (file: File) => api.uploadBackup("/api/v1/backups/restore", file),
     onSuccess: () => {
       setCSRFToken("");
+      clearStartupSnapshot();
       queryClient.clear();
       window.location.replace("/login?restored=1");
     },

@@ -17,6 +17,37 @@
   width: min(100%, 1080px);
   margin: 0 auto;
 }
+.syncBanner {
+  display: grid;
+  width: min(100%, 1080px);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.875rem;
+}
+.syncBannerError {
+  border-color: color-mix(in srgb, var(--md-sys-color-error) 45%, transparent);
+}
+.syncBanner button {
+  min-height: 36px;
+  padding-block: 6px;
+}
+.bootstrapBanner {
+  position: fixed;
+  z-index: 110;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  width: min(calc(100% - 24px), 720px);
+  margin: 0;
+  box-shadow: var(--md-sys-elevation-3);
+  transform: translateX(-50%);
+}
 .pageHeader {
   display: flex;
   align-items: flex-start;
@@ -789,6 +820,8 @@
 .loadingStack {
   display: grid;
   gap: 10px;
+  opacity: 0;
+  animation: revealLoading 0s 200ms forwards;
 }
 .loadingStack span {
   height: 82px;
@@ -800,6 +833,11 @@
 @keyframes shimmer {
   to {
     background-position: -200% 0;
+  }
+}
+@keyframes revealLoading {
+  to {
+    opacity: 1;
   }
 }
 .toastRegion {

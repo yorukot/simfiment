@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
-import type { DailyDashboard, Settings, Transaction } from "../../api/types";
+import type { DailyDashboard, Meta, Session, Transaction } from "../../api/types";
+import { saveTodayStartupSnapshot } from "../../app/startupSnapshot";
 import { EmptyState, ErrorState, PageLoading } from "../../components/States";
 import { addDays, formatDate, todayInTimezone } from "../../lib/date";
 import { TransactionRow } from "../transactions/TransactionRow";
@@ -10,10 +12,19 @@ import { Button, Chip, Icon, IconButton } from "../../components/ui";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
-export function TodayPage({ settings, onAdd }: { settings: Settings; onAdd: () => void }) {
+export function TodayPage({
+  session,
+  meta,
+  onAdd,
+}: {
+  session: Session;
+  meta: Meta;
+  onAdd: () => void;
+}) {
   const { locale, messages } = useI18n();
   const params = useParams();
   const navigate = useNavigate();
+  const settings = session.settings;
   const today = todayInTimezone(settings.timezone);
   const date = params.date ?? today;
   const fullDateLabel = formatDate(date, locale);
@@ -35,14 +46,39 @@ export function TodayPage({ settings, onAdd }: { settings: Settings; onAdd: () =
         signal,
       ),
   });
+  useEffect(() => {
+    if (!dashboard.data || !transactions.data) return;
+    saveTodayStartupSnapshot({
+      meta,
+      session,
+      date,
+      dashboard: dashboard.data,
+      transactions: transactions.data,
+    });
+  }, [dashboard.data, date, meta, session, transactions.data]);
   const go = (value: string) => navigate(value === today ? "/today" : `/day/${value}`);
   if (dashboard.isPending || transactions.isPending) return <PageLoading />;
-  if (dashboard.isError)
+  if (dashboard.isError && !dashboard.data)
     return <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />;
-  if (transactions.isError)
+  if (transactions.isError && !transactions.data)
     return <ErrorState error={transactions.error} onRetry={() => void transactions.refetch()} />;
+  if (!dashboard.data || !transactions.data) return <PageLoading />;
+  const backgroundError = session.csrfToken ? dashboard.error || transactions.error : undefined;
   return (
     <>
+      {backgroundError ? (
+        <div className={`${styles.syncBanner} ${styles.syncBannerError}`} role="status">
+          <Icon name="warning" size={18} />
+          <span>{messages.states.cachedUpdateFailed}</span>
+          <Button
+            variant="outlined"
+            type="button"
+            onClick={() => void Promise.all([dashboard.refetch(), transactions.refetch()])}
+          >
+            {messages.states.retry}
+          </Button>
+        </div>
+      ) : null}
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.eyebrow}>
