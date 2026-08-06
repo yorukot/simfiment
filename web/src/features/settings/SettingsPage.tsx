@@ -18,31 +18,17 @@ import {
   SegmentedControl,
   SwitchField,
   TextField,
+  categoryIconChoices,
   type IconName,
 } from "../../components/ui";
 import styles from "../../styles/ui.module.css";
 
-const iconOptions = [
-  ["", "預設圖示"],
-  ["food", "飲食"],
-  ["transport", "交通"],
-  ["shopping", "購物"],
-  ["home", "居家"],
-  ["entertainment", "娛樂"],
-  ["health", "健康"],
-  ["education", "教育"],
-  ["subscription", "訂閱"],
-  ["salary", "薪資"],
-  ["bonus", "獎金"],
-  ["freelance", "接案"],
-  ["interest", "利息"],
-  ["refund", "退款"],
-  ["gift", "禮物"],
-  ["travel", "旅行"],
-  ["pets", "寵物"],
-  ["utilities", "水電瓦斯"],
-  ["other", "其他"],
-] as const;
+const iconOptions = categoryIconChoices.map(({ value, label, keywords }) => ({
+  value,
+  label,
+  keywords,
+  icon: <CategoryIcon iconKey={value} width={24} height={24} />,
+}));
 
 const settingsTabs = [
   { to: "/settings", label: "一般", icon: "settings" },
@@ -478,11 +464,6 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
     [next[index], next[target]] = [next[target]!, next[index]!];
     reorder.mutate(next);
   }
-  const options = iconOptions.map(([value, label]) => ({
-    value,
-    label,
-    icon: <CategoryIcon iconKey={value} width={24} height={24} />,
-  }));
   return (
     <section className={styles.section}>
       <div className={styles.sectionTitle}>
@@ -506,7 +487,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
                   label={`${item.name} 圖示`}
                   value={item.iconKey}
                   onValueChange={(nextIcon) => action.mutate({ item, action: "update", nextIcon })}
-                  options={options}
+                  options={iconOptions}
                 />
               </div>
             ) : null}
@@ -568,7 +549,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
           accessibleLabel={`新增${title}圖示`}
           value={iconKey}
           onValueChange={setIconKey}
-          options={options}
+          options={iconOptions}
         />
         <Button
           variant="tonal"

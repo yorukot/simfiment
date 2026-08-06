@@ -2,6 +2,8 @@ import {
   Fragment,
   forwardRef,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -15,6 +17,7 @@ import { Drawer } from "@base-ui/react/drawer";
 import { Field } from "@base-ui/react/field";
 import { Menu } from "@base-ui/react/menu";
 import { NumberField } from "@base-ui/react/number-field";
+import { Popover } from "@base-ui/react/popover";
 import { Select } from "@base-ui/react/select";
 import { Switch } from "@base-ui/react/switch";
 import { Toggle } from "@base-ui/react/toggle";
@@ -23,7 +26,13 @@ import { Tooltip } from "@base-ui/react/tooltip";
 import { Icon, type IconName } from "./icons";
 import styles from "./primitives.module.css";
 
-export { CategoryIcon, Icon, type IconName } from "./icons";
+export {
+  CategoryIcon,
+  Icon,
+  categoryIconChoices,
+  type CategoryIconChoice,
+  type IconName,
+} from "./icons";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -189,7 +198,18 @@ export function NumericField({
 
 export type SelectOption = { value: string; label: string };
 
-export type IconPickerOption = { value: string; label: string; icon: ReactNode };
+export type IconPickerOption = {
+  value: string;
+  label: string;
+  icon: ReactNode;
+  keywords?: string;
+};
+
+const ICON_PICKER_PAGE_SIZE = 120;
+
+function normalizeIconSearch(value: string) {
+  return value.toLocaleLowerCase().replaceAll("_", " ").replace(/\s+/g, " ").trim();
+}
 
 export function IconPickerField({
   label,
@@ -210,48 +230,149 @@ export function IconPickerField({
   hideLabel?: boolean;
   className?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(ICON_PICKER_PAGE_SIZE);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const searchable = options.length > 20;
+  const normalizedQuery = normalizeIconSearch(query);
+  const filteredOptions = useMemo(() => {
+    if (!normalizedQuery) return options;
+    return options.filter((option) =>
+      normalizeIconSearch(`${option.label} ${option.value} ${option.keywords ?? ""}`).includes(
+        normalizedQuery,
+      ),
+    );
+  }, [normalizedQuery, options]);
+  const firstOptions = filteredOptions.slice(0, visibleCount);
+  const visibleOptions =
+    selected && filteredOptions.includes(selected) && !firstOptions.includes(selected)
+      ? [selected, ...firstOptions]
+      : firstOptions;
+  const hasMore = visibleCount < filteredOptions.length;
+
+  function resetSearch() {
+    setQuery("");
+    setVisibleCount(ICON_PICKER_PAGE_SIZE);
+  }
+
   return (
     <div className={cx(styles.field, className)}>
       <span className={cx(styles.fieldLabel, hideLabel && styles.visuallyHidden)}>{label}</span>
-      <Menu.Root>
-        <Menu.Trigger
+      <Popover.Root
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) resetSearch();
+        }}
+      >
+        <Popover.Trigger
           className={styles.iconPickerTrigger}
           aria-label={`${accessibleLabel}：${selected?.label ?? "請選擇"}`}
           disabled={disabled}
         >
           {selected?.icon}
           <Icon name="chevronDown" size={18} />
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner className={styles.menuPositioner} sideOffset={6} align="start">
-            <Menu.Popup className={styles.iconPickerPopup} aria-label={accessibleLabel}>
-              <Menu.RadioGroup
-                className={styles.iconPickerGrid}
-                value={value}
-                onValueChange={(next) => onValueChange(String(next))}
-                disabled={disabled}
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Positioner className={styles.menuPositioner} sideOffset={6} align="start">
+            <Popover.Popup
+              className={styles.iconPickerPopup}
+              role="dialog"
+              aria-label={accessibleLabel}
+              initialFocus={searchable ? searchInputRef : undefined}
+            >
+              {searchable ? (
+                <div className={styles.iconPickerSearch}>
+                  <div className={styles.iconPickerSearchControl}>
+                    <Icon name="search" size={20} />
+                    <input
+                      ref={searchInputRef}
+                      className={styles.iconPickerSearchInput}
+                      type="search"
+                      value={query}
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                        setVisibleCount(ICON_PICKER_PAGE_SIZE);
+                      }}
+                      placeholder="搜尋圖示（英文或中文）"
+                      aria-label="搜尋圖示"
+                    />
+                  </div>
+                  <span className={styles.iconPickerResultCount} role="status" aria-live="polite">
+                    {normalizedQuery
+                      ? `找到 ${filteredOptions.length.toLocaleString("zh-TW")} 個圖示`
+                      : `共 ${options.length.toLocaleString("zh-TW")} 個圖示`}
+                  </span>
+                </div>
+              ) : null}
+              <div
+                className={styles.iconPickerScroll}
+                onScroll={(event) => {
+                  const target = event.currentTarget;
+                  if (
+                    hasMore &&
+                    target.scrollHeight - target.scrollTop - target.clientHeight < 160
+                  ) {
+                    setVisibleCount((count) =>
+                      Math.min(count + ICON_PICKER_PAGE_SIZE, filteredOptions.length),
+                    );
+                  }
+                }}
               >
-                {options.map((option) => (
-                  <Menu.RadioItem
-                    key={option.value || "default"}
-                    className={styles.iconPickerItem}
-                    value={option.value}
-                    label={option.label}
-                    aria-label={option.label}
-                    closeOnClick
+                {visibleOptions.length ? (
+                  <div className={styles.iconPickerGrid} role="group" aria-label="圖示選項">
+                    {visibleOptions.map((option) => (
+                      <button
+                        key={option.value || "default"}
+                        type="button"
+                        className={styles.iconPickerItem}
+                        aria-label={option.label}
+                        aria-pressed={option.value === value}
+                        title={option.label}
+                        disabled={disabled}
+                        onClick={() => {
+                          onValueChange(option.value);
+                          setOpen(false);
+                        }}
+                      >
+                        {option.icon}
+                        {option.value === value ? (
+                          <span className={styles.iconPickerIndicator}>
+                            <Icon name="check" size={12} />
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.iconPickerEmpty}>
+                    <Icon name="search" size={28} />
+                    <span>找不到符合「{query.trim()}」的圖示</span>
+                    <button type="button" onClick={resetSearch}>
+                      清除搜尋
+                    </button>
+                  </div>
+                )}
+                {hasMore ? (
+                  <button
+                    type="button"
+                    className={styles.iconPickerMore}
+                    onClick={() => {
+                      setVisibleCount((count) =>
+                        Math.min(count + ICON_PICKER_PAGE_SIZE, filteredOptions.length),
+                      );
+                    }}
                   >
-                    {option.icon}
-                    <Menu.RadioItemIndicator className={styles.iconPickerIndicator}>
-                      <Icon name="check" size={12} />
-                    </Menu.RadioItemIndicator>
-                  </Menu.RadioItem>
-                ))}
-              </Menu.RadioGroup>
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+                    顯示更多
+                  </button>
+                ) : null}
+              </div>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }

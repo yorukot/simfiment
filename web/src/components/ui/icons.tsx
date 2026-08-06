@@ -1,4 +1,7 @@
 import type { CSSProperties, HTMLAttributes } from "react";
+import type { MaterialSymbol } from "@material-symbols/font-400";
+import "@material-symbols/font-400/rounded.css";
+import materialIconNamesText from "./material_icon_names.txt?raw";
 import Add from "@material-symbols/svg-400/rounded/add.svg";
 import Archive from "@material-symbols/svg-400/rounded/archive.svg";
 import ArrowDown from "@material-symbols/svg-400/rounded/arrow_downward.svg";
@@ -35,6 +38,7 @@ import Restore from "@material-symbols/svg-400/rounded/restore_from_trash.svg";
 import Salary from "@material-symbols/svg-400/rounded/paid.svg";
 import Savings from "@material-symbols/svg-400/rounded/savings.svg";
 import School from "@material-symbols/svg-400/rounded/school.svg";
+import Search from "@material-symbols/svg-400/rounded/search.svg";
 import Security from "@material-symbols/svg-400/rounded/security.svg";
 import Settings from "@material-symbols/svg-400/rounded/settings.svg";
 import Shopping from "@material-symbols/svg-400/rounded/shopping_bag.svg";
@@ -84,6 +88,7 @@ const iconComponents = {
   salary: Salary,
   savings: Savings,
   school: School,
+  search: Search,
   security: Security,
   settings: Settings,
   shopping: Shopping,
@@ -141,27 +146,100 @@ export function Icon({
   );
 }
 
-const categoryIcons: Record<string, IconName> = {
-  food: "food",
-  transport: "transport",
-  shopping: "shopping",
+const categoryIcons: Record<string, MaterialSymbol> = {
+  food: "restaurant",
+  transport: "directions_bus",
+  shopping: "shopping_bag",
   home: "home",
   entertainment: "movie",
-  health: "health",
+  health: "health_and_safety",
   education: "school",
-  subscription: "subscription",
-  salary: "salary",
-  bonus: "gift",
+  subscription: "subscriptions",
+  salary: "paid",
+  bonus: "redeem",
   freelance: "work",
   interest: "savings",
   refund: "undo",
-  gift: "gift",
+  gift: "redeem",
   travel: "flight",
   pets: "pets",
-  utilities: "utilities",
+  utilities: "bolt",
   other: "category",
 };
 
+const materialIconNames = materialIconNamesText.trim().split("\n") as MaterialSymbol[];
+const materialIconNameSet = new Set<string>(materialIconNames);
+
+export type CategoryIconChoice = {
+  value: string;
+  label: string;
+  keywords?: string;
+};
+
+const preferredCategoryIconChoices = [
+  { value: "", label: "預設圖示", keywords: "default category" },
+  { value: "food", label: "飲食", keywords: "food meal restaurant" },
+  { value: "transport", label: "交通", keywords: "transport bus car transit" },
+  { value: "shopping", label: "購物", keywords: "shopping bag store" },
+  { value: "home", label: "居家", keywords: "home house" },
+  { value: "entertainment", label: "娛樂", keywords: "entertainment movie" },
+  { value: "health", label: "健康", keywords: "health medical safety" },
+  { value: "education", label: "教育", keywords: "education school" },
+  { value: "subscription", label: "訂閱", keywords: "subscription recurring" },
+  { value: "salary", label: "薪資", keywords: "salary paid money" },
+  { value: "bonus", label: "獎金", keywords: "bonus reward" },
+  { value: "freelance", label: "接案", keywords: "freelance work" },
+  { value: "interest", label: "利息", keywords: "interest savings" },
+  { value: "refund", label: "退款", keywords: "refund undo return" },
+  { value: "gift", label: "禮物", keywords: "gift redeem present" },
+  { value: "travel", label: "旅行", keywords: "travel flight trip" },
+  { value: "pets", label: "寵物", keywords: "pets animal" },
+  { value: "utilities", label: "水電瓦斯", keywords: "utilities power bolt" },
+  { value: "other", label: "其他", keywords: "other category" },
+] satisfies CategoryIconChoice[];
+
+const preferredValues = new Set(preferredCategoryIconChoices.map(({ value }) => value));
+
+export const categoryIconChoices: CategoryIconChoice[] = [
+  ...preferredCategoryIconChoices,
+  ...materialIconNames
+    .filter((name) => !preferredValues.has(name))
+    .map((name) => ({
+      value: name,
+      label: name.replaceAll("_", " "),
+      keywords: name,
+    })),
+];
+
 export function CategoryIcon({ iconKey, ...props }: Omit<IconProps, "name"> & { iconKey: string }) {
-  return <Icon name={categoryIcons[iconKey] ?? "category"} {...props} />;
+  const { size = 24, width, height, className = "", style, ...spanProps } = props;
+  const iconName =
+    categoryIcons[iconKey] ??
+    (materialIconNameSet.has(iconKey) ? (iconKey as MaterialSymbol) : "category");
+  const iconWidth = width ?? size;
+  const iconHeight = height ?? size;
+  const numericWidth = typeof iconWidth === "number" ? iconWidth : size;
+  const numericHeight = typeof iconHeight === "number" ? iconHeight : size;
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`material-symbols-rounded ${className}`}
+      style={{
+        display: "inline-flex",
+        width: iconWidth,
+        height: iconHeight,
+        flex: "0 0 auto",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        fontSize: Math.min(numericWidth, numericHeight),
+        fontVariationSettings: "'FILL' 0",
+        ...style,
+      }}
+      {...spanProps}
+    >
+      {iconName}
+    </span>
+  );
 }

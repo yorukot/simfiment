@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AdaptiveModal,
   Button,
+  IconPickerField,
   SegmentedControl,
   SelectField,
   SwitchField,
@@ -48,6 +49,27 @@ function Harness() {
   );
 }
 
+const searchableIcons = Array.from({ length: 25 }, (_, index) => ({
+  value: `icon_${index}`,
+  label: index === 24 ? "Wallet" : `圖示 ${index}`,
+  keywords: index === 24 ? "money wallet" : undefined,
+  icon: <span aria-hidden="true">{index}</span>,
+}));
+
+function IconPickerHarness() {
+  const [icon, setIcon] = useState("icon_0");
+  return (
+    <UIProvider>
+      <IconPickerField
+        label="圖示"
+        value={icon}
+        onValueChange={setIcon}
+        options={searchableIcons}
+      />
+    </UIProvider>
+  );
+}
+
 describe("Material UI primitives", () => {
   it("exposes accessible field, toggle, select, switch, and dialog behavior", async () => {
     const user = userEvent.setup();
@@ -72,5 +94,22 @@ describe("Material UI primitives", () => {
     expect(screen.getByRole("dialog", { name: /測試表單/ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "關閉" }));
     expect(screen.queryByRole("dialog", { name: /測試表單/ })).not.toBeInTheDocument();
+  });
+
+  it("searches a large icon collection and selects a filtered result", async () => {
+    const user = userEvent.setup();
+    render(<IconPickerHarness />);
+
+    await user.click(screen.getByRole("button", { name: "圖示：圖示 0" }));
+    const search = screen.getByRole("searchbox", { name: "搜尋圖示" });
+    expect(screen.getByRole("status")).toHaveTextContent("共 25 個圖示");
+
+    await user.click(search);
+    await user.type(search, "wallet");
+    expect(screen.getByRole("status")).toHaveTextContent("找到 1 個圖示");
+    expect(screen.queryByRole("button", { name: "圖示 0" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Wallet" }));
+
+    expect(screen.getByRole("button", { name: "圖示：Wallet" })).toBeVisible();
   });
 });

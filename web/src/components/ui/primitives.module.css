@@ -334,12 +334,12 @@
   );
 }
 .iconPickerPopup {
-  width: min(292px, calc(100vw - 16px));
+  width: min(360px, calc(100vw - 16px));
+  overflow: hidden;
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
-  padding: 10px;
   box-shadow: var(--md-sys-elevation-3);
   transform-origin: var(--transform-origin);
   transition:
@@ -350,6 +350,59 @@
 .iconPickerPopup[data-ending-style] {
   opacity: 0;
   transform: scale(0.96);
+}
+.iconPickerSearch {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.iconPickerSearchControl {
+  display: grid;
+  min-height: 44px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0 14px;
+  transition:
+    border-color var(--md-sys-motion-duration-short),
+    box-shadow var(--md-sys-motion-duration-short);
+}
+.iconPickerSearchControl:focus-within {
+  border-color: var(--md-sys-color-tertiary);
+  outline: 3px solid var(--md-sys-color-tertiary);
+  outline-offset: 2px;
+}
+.iconPickerSearchInput {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+}
+.iconPickerSearchInput:focus-visible {
+  outline: 0;
+}
+.iconPickerSearchInput::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.iconPickerResultCount {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  padding-inline: 8px;
+}
+.iconPickerScroll {
+  max-height: min(420px, calc(100vh - 180px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
 }
 .iconPickerGrid {
   display: grid;
@@ -365,14 +418,20 @@
   place-items: center;
   border: 1px solid transparent;
   border-radius: var(--md-sys-shape-corner-small);
+  background: transparent;
   outline: 0;
   color: var(--md-sys-color-on-surface-variant);
+  padding: 0;
 }
-.iconPickerItem[data-highlighted] {
+.iconPickerItem:hover,
+.iconPickerItem:focus-visible {
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
   color: var(--md-sys-color-on-surface);
 }
-.iconPickerItem[data-checked] {
+.iconPickerItem:focus-visible {
+  border-color: var(--md-sys-color-primary);
+}
+.iconPickerItem[aria-pressed="true"] {
   border-color: var(--md-sys-color-primary);
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
@@ -388,6 +447,51 @@
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
+}
+.iconPickerMore {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.iconPickerMore:hover {
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-on-secondary-container) 8%,
+    var(--md-sys-color-secondary-container)
+  );
+}
+.iconPickerMore:focus-visible,
+.iconPickerEmpty button:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+.iconPickerEmpty {
+  display: grid;
+  min-height: 180px;
+  place-content: center;
+  place-items: center;
+  gap: 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
+}
+.iconPickerEmpty button {
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 650;
+}
+.iconPickerEmpty button:hover {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
 }
 
 .segmented {

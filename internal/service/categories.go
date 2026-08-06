@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"net/http"
 	"strings"
 	"unicode"
@@ -13,12 +14,21 @@ import (
 	"simfiment/internal/store"
 )
 
-var allowedIcons = map[string]bool{
-	"": true, "food": true, "transport": true, "shopping": true, "home": true,
-	"entertainment": true, "health": true, "education": true, "subscription": true,
-	"other": true, "salary": true, "bonus": true, "freelance": true, "interest": true,
-	"refund": true, "gift": true, "travel": true, "pets": true, "utilities": true,
-}
+//go:embed material_icon_names.txt
+var materialIconNames string
+
+var allowedIcons = func() map[string]bool {
+	icons := map[string]bool{
+		"": true, "food": true, "transport": true, "shopping": true, "home": true,
+		"entertainment": true, "health": true, "education": true, "subscription": true,
+		"other": true, "salary": true, "bonus": true, "freelance": true, "interest": true,
+		"refund": true, "gift": true, "travel": true, "pets": true, "utilities": true,
+	}
+	for _, name := range strings.Fields(materialIconNames) {
+		icons[name] = true
+	}
+	return icons
+}()
 
 // CategoryInput contains fields accepted for category creation.
 type CategoryInput struct {
