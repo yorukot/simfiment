@@ -61,10 +61,12 @@ test("fresh-install finance workflow", async ({ page }) => {
   expect(manifestResponse.ok()).toBe(true);
   expect(manifestResponse.headers()["content-type"]).toContain("application/manifest+json");
   expect(await manifestResponse.json()).toMatchObject({
-    name: "Simfiment 個人財務",
+    name: "Simfiment",
     short_name: "Simfiment",
     display: "standalone",
     start_url: "/today",
+    background_color: "#0f1113",
+    theme_color: "#0f1113",
     icons: expect.arrayContaining([
       expect.objectContaining({ sizes: "192x192", purpose: "any" }),
       expect.objectContaining({ sizes: "512x512", purpose: "maskable" }),

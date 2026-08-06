@@ -11,7 +11,7 @@ export default defineConfig({
       includeAssets: ["apple-touch-icon.png", "icons/favicon-64x64.png"],
       manifest: {
         id: "/",
-        name: "Simfiment 個人財務",
+        name: "Simfiment",
         short_name: "Simfiment",
         description: "簡單、安靜的個人財務管理",
         lang: "zh-TW",
@@ -20,8 +20,8 @@ export default defineConfig({
         scope: "/",
         display: "standalone",
         orientation: "any",
-        background_color: "#f8f7f4",
-        theme_color: "#17191c",
+        background_color: "#0f1113",
+        theme_color: "#0f1113",
         categories: ["finance", "productivity"],
         icons: [
           {
