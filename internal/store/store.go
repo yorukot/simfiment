@@ -82,12 +82,15 @@ func (s *Store) InsertSetup(ctx context.Context, settings domain.Settings, passw
 	}
 	locale, _ := i18n.Normalize(settings.Locale)
 	expense, income := i18n.DefaultCategories(locale)
-	for kind, categories := range map[string][]i18n.CategorySeed{"expense": expense, "income": income} {
-		for i, category := range categories {
+	for _, group := range []struct {
+		kind       string
+		categories []i18n.CategorySeed
+	}{{"expense", expense}, {"income", income}} {
+		for i, category := range group.categories {
 			if _, err := s.q.ExecContext(ctx, `INSERT INTO categories(
 				kind, name, icon_key, sort_order, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?)`, kind, category.Name, category.Icon, i, nowMS, nowMS); err != nil {
-				return fmt.Errorf("insert default %s category: %w", kind, err)
+			) VALUES (?, ?, ?, ?, ?, ?)`, group.kind, category.Name, category.Icon, i, nowMS, nowMS); err != nil {
+				return fmt.Errorf("insert default %s category: %w", group.kind, err)
 			}
 		}
 	}

@@ -540,15 +540,13 @@ The Settings area must include:
 - Revoke other sessions
 - Application version
 - Database health summary
-- Backup status summary
+- Full database backup download and restore
+- CSV transaction export
 
 The normal UI must not include:
 
-- Database file upload
-- Database file download
 - Destructive “delete all data” action
 - Migration controls
-- CSV controls
 
 ---
 
@@ -2342,7 +2340,7 @@ This simplifies connection-specific pragma behavior and write locking for a sing
 - Applied migrations are recorded with checksum.
 - Migration runs before the HTTP server becomes ready.
 - Migration is transactional where SQLite permits.
-- A consistent backup is created before a destructive migration.
+- Destructive migrations require an explicit, separately reviewed data-preservation strategy.
 - Never edit an already released migration file.
 
 ## 20.4 Initial schema
@@ -3587,7 +3585,6 @@ Recommended container structure:
 ```text
 /app/simfiment
 /data/simfiment.db
-/data/backups/
 ```
 
 Docker or equivalent:
@@ -3631,8 +3628,6 @@ Recommended:
 ```bash
 simfiment serve
 simfiment migrate status
-simfiment backup create
-simfiment backup restore <file>
 simfiment auth reset
 simfiment doctor
 simfiment version
@@ -3642,17 +3637,17 @@ simfiment version
 
 # 27. Backup and Restore
 
-CSV import/export is out of scope, but operational backup is mandatory.
+User-controlled full backup and restore is mandatory for self-hosted portability.
 
 ## 27.1 Backup requirements
 
 - Create a consistent SQLite snapshot.
 - Do not raw-copy an active database without handling WAL correctly.
-- Use a driver-supported online backup mechanism or tested `VACUUM INTO` strategy.
-- Write to a temporary file first.
-- Verify backup.
-- Atomically rename into final backup path.
-- Use restrictive file permissions.
+- Use tested `VACUUM INTO` behavior for the downloadable snapshot.
+- Include transactions, categories, recurring data, settings, locations, and credentials.
+- Remove Session rows before download so no login state is carried into a restore.
+- Verify with `quick_check` and `foreign_key_check` before streaming.
+- Use `0600` temporary files, `Cache-Control: private, no-store`, and delete temporary files after transfer.
 
 Filename:
 
@@ -3660,51 +3655,27 @@ Filename:
 simfiment-2026-08-05T120000Z.db
 ```
 
-## 27.2 Backup schedule
+## 27.2 Backup download
 
-Recommended baseline:
-
-- Before every schema migration that can modify existing data.
-- Daily automatic snapshot.
-- Keep last 7 daily backups.
-- Keep last 4 weekly backups.
-
-Automatic backup scheduling is a deployment responsibility in the MVP.
-
-Use an external scheduler such as cron, a systemd timer, or the hosting platform scheduler to invoke:
-
-```bash
-simfiment backup create
-```
-
-The application itself does not run an internal daily-backup scheduler in the MVP.
+- Settings provides one authenticated download action.
+- The server does not retain backup history, counts, or a latest-backup timestamp.
+- Automatic scheduling and cloud storage are not provided.
+- The UI warns that the file contains sensitive financial, location, settings, and password-hash data and should be stored off-host.
 
 ## 27.3 Restore requirements
 
-Restore requires the server to be stopped or placed in maintenance mode.
+Restore is an authenticated, same-origin, CSRF-protected upload with a 1 GiB limit and five-minute timeout.
 
-Steps:
+1. Stream the raw `application/vnd.sqlite3` body to a `0600` temporary file.
+2. Verify the SQLite header and initialized Simfiment schema.
+3. Reject unknown/newer migrations; upgrade older schemas only in the staged file.
+4. Remove all staged Session rows and run `quick_check` plus `foreign_key_check`.
+5. Acquire exclusive database access and reauthenticate the initiating Session.
+6. Create an ephemeral rollback snapshot and use the SQLite online backup API to replace the live database.
+7. Verify health; automatically restore the rollback snapshot on failure.
+8. On success, clear the browser cookie and require the password stored in the backup.
 
-1. Verify backup file exists.
-2. Open backup read-only.
-3. Run `PRAGMA quick_check`.
-4. Preserve current database as emergency rollback copy.
-5. Replace database.
-6. Run migrations.
-7. Run `PRAGMA foreign_key_check`.
-8. Start server.
-9. Verify readiness endpoint.
-
-## 27.4 Backup status
-
-Settings must display a backup summary derived from the configured backup directory:
-
-- Last successful backup time
-- Number of retained backups
-
-Backup failures remain visible in operational logs and the CLI exit status.
-
-It must not provide a database download button in MVP.
+Normal success and recovered failures remove all temporary files. A rollback snapshot remains only when both replacement and recovery fail, and its path is written to the error log.
 
 ---
 
@@ -3938,12 +3909,12 @@ Automated checks do not replace manual review.
 
 ## 29.8 Backup tests
 
-- Create backup while server is running.
-- Verify backup integrity.
-- Restore into a fresh data directory.
-- Run migrations after restore.
-- Compare transaction and category counts.
-- Verify dashboards after restore.
+- Download while the server is running and verify WAL-backed data is present.
+- Verify snapshot integrity, permissions, headers, and removed Session rows.
+- Restore through the authenticated API and compare data, settings, and credentials.
+- Verify older migrations are applied and newer schemas are rejected.
+- Reject corrupt, unrelated, oversized, and foreign-key-invalid SQLite files without changing live data.
+- Verify successful restore signs out every Session and failed restore recovers the original database.
 
 ---
 
@@ -4398,9 +4369,8 @@ Exit criteria:
 
 Implement:
 
-- Backup create/restore
+- Authenticated backup download and online restore
 - Doctor command
-- Migration backup
 - Security headers
 - Rate limiting
 - Session cleanup
@@ -4576,10 +4546,7 @@ Do not implement these unless a later approved milestone adds them:
 ## Data portability
 
 - CSV import
-- CSV export
 - JSON export
-- User-facing database download
-- User-facing database upload
 
 ## Financial modeling
 

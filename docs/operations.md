@@ -21,15 +21,19 @@ SIMFIMENT_DEVELOPMENT=false
 
 ## Backup
 
-`simfiment backup create` 使用 SQLite `VACUUM INTO` 建立一致快照，通過 quick check 與 foreign-key check 後才原子改名。建議由 cron、systemd timer 或平台 scheduler 每日執行，保留最近 7 份 daily 與 4 份 weekly。備份檔與資料目錄必須只讓服務帳號讀取。
+登入後由「設定 → 完整備份與還原」下載備份。伺服器使用 SQLite `VACUUM INTO` 建立包含 WAL 已提交內容的一致快照，清除 Session，通過 quick check 與 foreign-key check 後才傳給瀏覽器。暫存檔使用 `0600` 並在傳輸完成後刪除，伺服器不保留歷史份數。
+
+`.db` 內含交易、分類、週期、設定、位置與密碼雜湊，應存放在受保護且不與 Simfiment 共用同一磁碟的位置。Simfiment 不提供自動排程或雲端保存；自架管理者應依自己的復原目標定期下載並保存備份。
 
 ## Restore
 
-1. 停止 Simfiment server。
-2. 執行 `simfiment backup restore /path/to/simfiment-....db`。
-3. 記錄輸出的 rollback 檔案路徑。
-4. 執行 `simfiment doctor`。
-5. 啟動 server，確認 `/health/ready`。
+1. 在「設定 → 完整備份與還原」選擇 `.db`，確認取代所有資料。
+2. 伺服器將檔案串流到受限暫存空間；上限 1 GiB、逾時 5 分鐘。
+3. 上傳檔必須是已初始化的 Simfiment SQLite；舊版 schema 會先在暫存檔升級，較新版 schema 會被拒絕。
+4. 完整性檢查通過後，伺服器短暫鎖定資料庫請求，以 SQLite 線上還原取代目前資料。失敗時會自動回復原資料。
+5. 成功後所有 Session 都會失效；以備份當時的密碼重新登入並確認資料。
+
+只有取代與 rollback 都失敗的極端情況，伺服器才會在 error log 記錄保留下來的緊急 snapshot 路徑；一般成功或已回復的操作不留下伺服器端備份。
 
 ## Password recovery
 

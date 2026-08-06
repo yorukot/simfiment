@@ -282,6 +282,101 @@ func TestTransactionCSVExport(t *testing.T) {
 	}
 }
 
+func TestDatabaseBackupDownloadAndRestore(t *testing.T) {
+	handler, cfg, initial, closeDB := newTestHandler(t)
+	defer closeDB()
+	cookie := &http.Cookie{Name: "simfiment_session", Value: initial.Token}
+
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/v1/backups/download", nil))
+	if unauthenticated.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated backup status = %d", unauthenticated.Code)
+	}
+
+	downloadRequest := httptest.NewRequest(http.MethodGet, "/api/v1/backups/download", nil)
+	downloadRequest.AddCookie(cookie)
+	download := httptest.NewRecorder()
+	handler.ServeHTTP(download, downloadRequest)
+	if download.Code != http.StatusOK {
+		t.Fatalf("download status = %d: %s", download.Code, download.Body.String())
+	}
+	if got := download.Header().Get("Content-Type"); got != "application/vnd.sqlite3" {
+		t.Fatalf("download Content-Type = %q", got)
+	}
+	if got := download.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment; filename=\"simfiment-backup-") || !strings.HasSuffix(got, ".db\"") {
+		t.Fatalf("download Content-Disposition = %q", got)
+	}
+	backupBody := append([]byte(nil), download.Body.Bytes()...)
+	if !bytes.HasPrefix(backupBody, []byte("SQLite format 3\x00")) {
+		t.Fatal("download is not a SQLite database")
+	}
+
+	create := authenticatedJSONRequest(http.MethodPost, "/api/v1/categories",
+		[]byte(`{"kind":"expense","name":"Created after backup","iconKey":""}`), cookie, initial.CSRFToken, cfg.BaseURL)
+	created := httptest.NewRecorder()
+	handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create category status = %d: %s", created.Code, created.Body.String())
+	}
+
+	restoreRequest := httptest.NewRequest(http.MethodPost, "/api/v1/backups/restore", bytes.NewReader(backupBody))
+	restoreRequest.Header.Set("Content-Type", "application/vnd.sqlite3")
+	restoreRequest.Header.Set("Origin", cfg.BaseURL)
+	restoreRequest.Header.Set("X-CSRF-Token", initial.CSRFToken)
+	restoreRequest.AddCookie(cookie)
+	restored := httptest.NewRecorder()
+	handler.ServeHTTP(restored, restoreRequest)
+	if restored.Code != http.StatusNoContent {
+		t.Fatalf("restore status = %d: %s", restored.Code, restored.Body.String())
+	}
+	clearedCookie := false
+	for _, responseCookie := range restored.Result().Cookies() {
+		if responseCookie.Name == "simfiment_session" && responseCookie.MaxAge < 0 {
+			clearedCookie = true
+		}
+	}
+	if !clearedCookie {
+		t.Fatal("restore response did not clear the session cookie")
+	}
+
+	oldSessionRequest := httptest.NewRequest(http.MethodGet, "/api/v1/session", nil)
+	oldSessionRequest.AddCookie(cookie)
+	oldSession := httptest.NewRecorder()
+	handler.ServeHTTP(oldSession, oldSessionRequest)
+	if oldSession.Code != http.StatusUnauthorized {
+		t.Fatalf("old session status after restore = %d", oldSession.Code)
+	}
+
+	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/session",
+		bytes.NewBufferString(`{"password":"a sufficiently long password"}`))
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRequest.Header.Set("Origin", cfg.BaseURL)
+	loginResponse := httptest.NewRecorder()
+	handler.ServeHTTP(loginResponse, loginRequest)
+	if loginResponse.Code != http.StatusOK {
+		t.Fatalf("login after restore = %d: %s", loginResponse.Code, loginResponse.Body.String())
+	}
+	var loginCookie *http.Cookie
+	for _, responseCookie := range loginResponse.Result().Cookies() {
+		if responseCookie.Name == "simfiment_session" {
+			loginCookie = responseCookie
+		}
+	}
+	if loginCookie == nil {
+		t.Fatal("login after restore did not set a session cookie")
+	}
+	categoryRequest := httptest.NewRequest(http.MethodGet, "/api/v1/categories?kind=expense", nil)
+	categoryRequest.AddCookie(loginCookie)
+	categories := httptest.NewRecorder()
+	handler.ServeHTTP(categories, categoryRequest)
+	if categories.Code != http.StatusOK {
+		t.Fatalf("categories after restore = %d: %s", categories.Code, categories.Body.String())
+	}
+	if strings.Contains(categories.Body.String(), "Created after backup") {
+		t.Fatal("data created after the backup survived restore")
+	}
+}
+
 func TestFormatMinorAmount(t *testing.T) {
 	tests := []struct {
 		amount   int64

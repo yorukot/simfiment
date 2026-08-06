@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"simfiment/internal/platform"
@@ -18,6 +19,7 @@ type API struct {
 	logger  *slog.Logger
 	version string
 	static  http.Handler
+	dbGate  sync.RWMutex
 }
 
 // New creates a same-origin API and SPA router.
@@ -36,6 +38,8 @@ func New(svc *service.Service, db *sql.DB, cfg platform.Config, logger *slog.Log
 	mux.HandleFunc("GET /api/v1/settings", a.protected(false, a.getSettings))
 	mux.HandleFunc("PATCH /api/v1/settings", a.protected(true, a.patchSettings))
 	mux.HandleFunc("GET /api/v1/operations/status", a.protected(false, a.operationsStatus))
+	mux.HandleFunc("GET /api/v1/backups/download", a.protected(false, a.downloadBackup))
+	mux.HandleFunc("POST /api/v1/backups/restore", a.protectedRestore(a.restoreBackup))
 	mux.HandleFunc("GET /api/v1/categories", a.protected(false, a.listCategories))
 	mux.HandleFunc("POST /api/v1/categories", a.protected(true, a.createCategory))
 	mux.HandleFunc("PATCH /api/v1/categories/{id}", a.protected(true, a.patchCategory))
@@ -66,7 +70,7 @@ func New(svc *service.Service, db *sql.DB, cfg platform.Config, logger *slog.Log
 	mux.HandleFunc("POST /api/v1/recurring-occurrences/{id}/skip", a.protected(true, a.skipOccurrence))
 	mux.HandleFunc("/api/", a.apiNotFound)
 	mux.Handle("/", static)
-	return a.middleware(mux)
+	return a.middleware(a.withDatabaseGate(mux))
 }
 
 func (a *API) cookieName() string {

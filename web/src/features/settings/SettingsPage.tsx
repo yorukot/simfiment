@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError, errorMessage, setCSRFToken } from "../../api/client";
@@ -32,7 +32,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const { locale, messages } = useI18n();
+  const { messages } = useI18n();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,6 +42,9 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   const [currencyDraft, setCurrencyDraft] = useState(settings.currencyCode);
   const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);
   const [currencyConfirmed, setCurrencyConfirmed] = useState(false);
+  const backupInputRef = useRef<HTMLInputElement>(null);
+  const [restoreFile, setRestoreFile] = useState<File>();
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const onCategories = location.pathname === "/settings/categories";
   const onSecurity = location.pathname === "/settings/security";
   const onLocation = location.pathname === "/settings/location";
@@ -107,6 +110,14 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
   const revoke = useMutation({
     mutationFn: () => api.post("/api/v1/sessions/revoke-others", {}),
     onSuccess: () => showToast({ message: messages.settings.sessionsRevoked }),
+  });
+  const restoreBackup = useMutation({
+    mutationFn: (file: File) => api.uploadBackup("/api/v1/backups/restore", file),
+    onSuccess: () => {
+      setCSRFToken("");
+      queryClient.clear();
+      window.location.replace("/login?restored=1");
+    },
   });
 
   if (onCategories && (expense.isPending || income.isPending))
@@ -376,6 +387,56 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
           <Card className={styles.settingWide}>
             <div className={styles.settingHeading}>
               <span className={styles.settingIcon}>
+                <Icon name="restore" />
+              </span>
+              <div>
+                <h2>{messages.settings.fullBackup}</h2>
+                <p>{messages.settings.fullBackupDescription}</p>
+              </div>
+            </div>
+            <div className={styles.form}>
+              <div className={styles.privacyNote}>
+                <Icon name="warning" size={20} />
+                <p>{messages.settings.backupSensitive}</p>
+              </div>
+              <div className={styles.actions}>
+                <Button
+                  variant="outlined"
+                  type="button"
+                  onClick={() => window.location.assign("/api/v1/backups/download")}
+                >
+                  <Icon name="download" size={19} />
+                  {messages.settings.downloadBackup}
+                </Button>
+                <Button
+                  variant="outlined"
+                  type="button"
+                  onClick={() => backupInputRef.current?.click()}
+                >
+                  <Icon name="upload" size={19} />
+                  {messages.settings.chooseBackup}
+                </Button>
+                <input
+                  ref={backupInputRef}
+                  className={styles.srOnly}
+                  type="file"
+                  accept=".db,application/vnd.sqlite3"
+                  aria-label={messages.settings.chooseBackup}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (!file) return;
+                    restoreBackup.reset();
+                    setRestoreFile(file);
+                    setRestoreDialogOpen(true);
+                  }}
+                />
+              </div>
+            </div>
+          </Card>
+          <Card className={styles.settingWide}>
+            <div className={styles.settingHeading}>
+              <span className={styles.settingIcon}>
                 <Icon name="download" />
               </span>
               <div>
@@ -418,30 +479,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
                       : messages.settings.needsCheck}
                 </strong>
               </div>
-              <div>
-                <span>{messages.settings.backups}</span>
-                <strong>
-                  {operations.data
-                    ? messages.settings.backupCount(operations.data.backupCount)
-                    : messages.settings.checking}
-                </strong>
-              </div>
-              <div>
-                <span>{messages.settings.latestBackup}</span>
-                <strong>
-                  {operations.data?.lastBackupAt
-                    ? new Intl.DateTimeFormat(locale, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(operations.data.lastBackupAt))
-                    : messages.settings.none}
-                </strong>
-              </div>
             </div>
-            <p className={styles.hint}>
-              {messages.settings.backupHintBefore} <code>simfiment backup create</code>
-              {messages.settings.backupHintAfter}
-            </p>
           </Card>
         </div>
       )}
@@ -500,6 +538,53 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
               type="button"
               disabled={patchSettings.isPending}
               onClick={() => setCurrencyDialogOpen(false)}
+            >
+              {messages.common.cancel}
+            </Button>
+          </div>
+        </div>
+      </AdaptiveModal>
+      <AdaptiveModal
+        open={restoreDialogOpen}
+        onOpenChange={(open) => {
+          if (restoreBackup.isPending) return;
+          setRestoreDialogOpen(open);
+          if (!open) {
+            setRestoreFile(undefined);
+            restoreBackup.reset();
+          }
+        }}
+        title={messages.settings.restoreBackupTitle}
+        description={
+          restoreFile ? messages.settings.restoreBackupDescription(restoreFile.name) : ""
+        }
+      >
+        <div className={styles.form}>
+          <div className={styles.privacyNote}>
+            <Icon name="warning" size={20} />
+            <p>{messages.settings.restoreBackupWarning}</p>
+          </div>
+          <p className={styles.hint}>{messages.settings.restoreBackupPassword}</p>
+          {restoreBackup.error ? (
+            <p className={styles.formError}>{errorMessage(restoreBackup.error)}</p>
+          ) : null}
+          <div className={styles.actions}>
+            <Button
+              variant="danger"
+              type="button"
+              disabled={!restoreFile}
+              loading={restoreBackup.isPending}
+              onClick={() => {
+                if (restoreFile) restoreBackup.mutate(restoreFile);
+              }}
+            >
+              {messages.settings.confirmRestoreBackup}
+            </Button>
+            <Button
+              variant="text"
+              type="button"
+              disabled={restoreBackup.isPending}
+              onClick={() => setRestoreDialogOpen(false)}
             >
               {messages.common.cancel}
             </Button>

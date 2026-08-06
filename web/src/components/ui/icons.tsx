@@ -48,6 +48,7 @@ import Sync from "@material-symbols/svg-400/rounded/sync.svg";
 import Today from "@material-symbols/svg-400/rounded/today.svg";
 import Transport from "@material-symbols/svg-400/rounded/directions_bus.svg";
 import Undo from "@material-symbols/svg-400/rounded/undo.svg";
+import Upload from "@material-symbols/svg-400/rounded/upload.svg";
 import Utilities from "@material-symbols/svg-400/rounded/bolt.svg";
 import Warning from "@material-symbols/svg-400/rounded/warning.svg";
 import Work from "@material-symbols/svg-400/rounded/work.svg";
@@ -99,6 +100,7 @@ const iconComponents = {
   today: Today,
   transport: Transport,
   undo: Undo,
+  upload: Upload,
   utilities: Utilities,
   warning: Warning,
   work: Work,

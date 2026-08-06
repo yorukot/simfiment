@@ -39,32 +39,6 @@ func Run(args []string) error {
 	}
 	logger := newLogger(cfg.LogLevel)
 	ctx := context.Background()
-	if command == "backup" && len(args) > 1 && args[1] == "restore" {
-		if len(args) != 3 {
-			return fmt.Errorf("usage: simfiment backup restore <file>")
-		}
-		rollback, err := database.RestoreBackup(ctx, cfg.DataDir, args[2], time.Now())
-		if err != nil {
-			return err
-		}
-		restoredDB, err := database.Open(ctx, cfg.DataDir)
-		if err != nil {
-			return fmt.Errorf("open restored database: %w", err)
-		}
-		if err := database.Health(ctx, restoredDB); err != nil {
-			restoredDB.Close()
-			return fmt.Errorf("verify restored database: %w", err)
-		}
-		if err := restoredDB.Close(); err != nil {
-			return err
-		}
-		if rollback == "" {
-			fmt.Println("Backup restored into a fresh data directory.")
-		} else {
-			fmt.Printf("Backup restored. Previous database preserved at %s\n", rollback)
-		}
-		return nil
-	}
 	db, err := database.Open(ctx, cfg.DataDir)
 	if err != nil {
 		return err
@@ -83,16 +57,6 @@ func Run(args []string) error {
 		}
 		fmt.Println("Database quick_check: ok")
 		fmt.Println("Foreign key check: ok")
-		return nil
-	case "backup":
-		if len(args) != 2 || args[1] != "create" {
-			return fmt.Errorf("usage: simfiment backup create")
-		}
-		info, err := database.CreateBackup(ctx, db, cfg.DataDir, time.Now())
-		if err != nil {
-			return err
-		}
-		fmt.Println(info.Path)
 		return nil
 	case "auth":
 		if len(args) != 2 || args[1] != "reset" {

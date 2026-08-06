@@ -22,9 +22,23 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+// ErrNewerSchema reports that a database was created by a newer Simfiment release.
+var ErrNewerSchema = errors.New("database schema is newer than this Simfiment release")
+
+type migrationDefinition struct {
+	version  int
+	name     string
+	checksum string
+	body     string
+}
+
 // Open opens SQLite, applies required pragmas, and runs forward migrations.
 func Open(ctx context.Context, dataDir string) (*sql.DB, error) {
 	path := filepath.Join(dataDir, "simfiment.db")
+	return openPath(ctx, path)
+}
+
+func openPath(ctx context.Context, path string) (*sql.DB, error) {
 	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -81,11 +95,82 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	) STRICT`); err != nil {
 		return fmt.Errorf("create migration table: %w", err)
 	}
+	migrations, err := embeddedMigrations()
+	if err != nil {
+		return err
+	}
+	known := make(map[int]migrationDefinition, len(migrations))
+	maxVersion := 0
+	for _, migration := range migrations {
+		known[migration.version] = migration
+		if migration.version > maxVersion {
+			maxVersion = migration.version
+		}
+	}
+	applied := map[int]string{}
+	rows, err := db.QueryContext(ctx, "SELECT version, checksum FROM schema_migrations")
+	if err != nil {
+		return fmt.Errorf("read migration state: %w", err)
+	}
+	for rows.Next() {
+		var version int
+		var checksum string
+		if err := rows.Scan(&version, &checksum); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan migration state: %w", err)
+		}
+		migration, ok := known[version]
+		if !ok {
+			rows.Close()
+			if version > maxVersion {
+				return fmt.Errorf("%w: migration %d", ErrNewerSchema, version)
+			}
+			return fmt.Errorf("unknown migration version %d", version)
+		}
+		if checksum != migration.checksum {
+			rows.Close()
+			return fmt.Errorf("migration %d checksum mismatch", version)
+		}
+		applied[version] = checksum
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close migration state: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read migration state: %w", err)
+	}
+
+	for _, migration := range migrations {
+		if _, ok := applied[migration.version]; ok {
+			continue
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin migration %d: %w", migration.version, err)
+		}
+		if _, err = tx.ExecContext(ctx, migration.body); err == nil {
+			_, err = tx.ExecContext(ctx,
+				"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+				migration.version, migration.name, migration.checksum, time.Now().UTC().UnixMilli())
+		}
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("apply migration %d: %w", migration.version, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %d: %w", migration.version, err)
+		}
+	}
+	return nil
+}
+
+func embeddedMigrations() ([]migrationDefinition, error) {
 	entries, err := fs.ReadDir(migrationFiles, "migrations")
 	if err != nil {
-		return fmt.Errorf("read migrations: %w", err)
+		return nil, fmt.Errorf("read migrations: %w", err)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	migrations := make([]migrationDefinition, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
 			continue
@@ -93,43 +178,18 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		parts := strings.SplitN(entry.Name(), "_", 2)
 		version, err := strconv.Atoi(parts[0])
 		if err != nil {
-			return fmt.Errorf("invalid migration filename %q", entry.Name())
+			return nil, fmt.Errorf("invalid migration filename %q", entry.Name())
 		}
 		body, err := migrationFiles.ReadFile("migrations/" + entry.Name())
 		if err != nil {
-			return fmt.Errorf("read migration %s: %w", entry.Name(), err)
+			return nil, fmt.Errorf("read migration %s: %w", entry.Name(), err)
 		}
 		sum := sha256.Sum256(body)
-		checksum := hex.EncodeToString(sum[:])
-		var existing string
-		err = db.QueryRowContext(ctx, "SELECT checksum FROM schema_migrations WHERE version = ?", version).Scan(&existing)
-		if err == nil {
-			if existing != checksum {
-				return fmt.Errorf("migration %d checksum mismatch", version)
-			}
-			continue
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("read migration state: %w", err)
-		}
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %d: %w", version, err)
-		}
-		if _, err = tx.ExecContext(ctx, string(body)); err == nil {
-			_, err = tx.ExecContext(ctx,
-				"INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
-				version, entry.Name(), checksum, time.Now().UTC().UnixMilli())
-		}
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply migration %d: %w", version, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %d: %w", version, err)
-		}
+		migrations = append(migrations, migrationDefinition{
+			version: version, name: entry.Name(), checksum: hex.EncodeToString(sum[:]), body: string(body),
+		})
 	}
-	return nil
+	return migrations, nil
 }
 
 // WithTx executes fn in a database transaction and commits only on success.

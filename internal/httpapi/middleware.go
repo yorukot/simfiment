@@ -25,6 +25,10 @@ type responseRecorder struct {
 	status int
 }
 
+func (w *responseRecorder) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func (w *responseRecorder) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
@@ -55,30 +59,64 @@ func (a *API) middleware(next http.Handler) http.Handler {
 
 func (a *API) protected(mutation bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(a.cookieName())
-		if err != nil {
-			a.writeError(w, r, domain.NewError(http.StatusUnauthorized, "authentication_required", "請先登入。"))
+		authorized, ok := a.authorize(w, r, mutation)
+		if !ok {
 			return
 		}
-		session, err := a.service.Authenticate(r.Context(), cookie.Value)
-		if err != nil {
-			a.clearSessionCookie(w)
-			a.writeError(w, r, err)
-			return
-		}
-		if mutation {
-			if origin := r.Header.Get("Origin"); origin == "" || strings.TrimRight(origin, "/") != strings.TrimRight(a.cfg.BaseURL, "/") {
-				a.writeError(w, r, domain.NewError(http.StatusForbidden, "invalid_origin", "請求來源無效。"))
-				return
-			}
-			if !a.service.CheckCSRF(session, r.Header.Get("X-CSRF-Token")) {
-				a.writeError(w, r, domain.NewError(http.StatusForbidden, "invalid_csrf", "安全驗證失敗，請重新整理後再試。"))
-				return
-			}
-		}
-		r = r.WithContext(context.WithValue(r.Context(), sessionKey, session))
-		next(w, r)
+		next(w, authorized)
 	}
+}
+
+// protectedRestore authenticates without holding the shared database gate while
+// a potentially large file is uploaded and validated. The handler takes the
+// exclusive gate only for the final online replacement.
+func (a *API) protectedRestore(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		a.dbGate.RLock()
+		authorized, ok := a.authorize(w, r, true)
+		a.dbGate.RUnlock()
+		if !ok {
+			return
+		}
+		next(w, authorized)
+	}
+}
+
+func (a *API) authorize(w http.ResponseWriter, r *http.Request, mutation bool) (*http.Request, bool) {
+	cookie, err := r.Cookie(a.cookieName())
+	if err != nil {
+		a.writeError(w, r, domain.NewError(http.StatusUnauthorized, "authentication_required", "請先登入。"))
+		return r, false
+	}
+	session, err := a.service.Authenticate(r.Context(), cookie.Value)
+	if err != nil {
+		a.clearSessionCookie(w)
+		a.writeError(w, r, err)
+		return r, false
+	}
+	if mutation {
+		if origin := r.Header.Get("Origin"); origin == "" || strings.TrimRight(origin, "/") != strings.TrimRight(a.cfg.BaseURL, "/") {
+			a.writeError(w, r, domain.NewError(http.StatusForbidden, "invalid_origin", "請求來源無效。"))
+			return r, false
+		}
+		if !a.service.CheckCSRF(session, r.Header.Get("X-CSRF-Token")) {
+			a.writeError(w, r, domain.NewError(http.StatusForbidden, "invalid_csrf", "安全驗證失敗，請重新整理後再試。"))
+			return r, false
+		}
+	}
+	return r.WithContext(context.WithValue(r.Context(), sessionKey, session)), true
+}
+
+func (a *API) withDatabaseGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/backups/restore" || r.URL.Path == "/health/live" || !strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/health/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		a.dbGate.RLock()
+		defer a.dbGate.RUnlock()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func sessionFrom(ctx context.Context) store.Session {

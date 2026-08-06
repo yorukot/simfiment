@@ -15,7 +15,7 @@ Simfiment（Simple Financial Management）是單一使用者、行動優先的�
 - 設定頁可將所有未刪除交易匯出為 Excel 相容的 UTF-8 CSV
 - 非阻塞瀏覽器位置擷取、延遲附加、失敗狀態、五分鐘內重試與移除
 - 錨點式週／月／年週期規則、快照、確認、調整並確認、略過與 30 日預覽
-- SQLite migration、健康檢查、線上備份、離線還原、doctor 與密碼復原 CLI
+- SQLite migration、健康檢查、設定頁完整備份／線上還原、doctor 與密碼復原 CLI
 - 可安裝 PWA、每個瀏覽器獨立設定的繁中／英文介面、深色主題、鍵盤操作與可讀的圖表替代內容
 
 ## 本機開發
@@ -65,13 +65,11 @@ make e2e
 simfiment serve
 simfiment migrate status
 simfiment doctor
-simfiment backup create
-simfiment backup restore /path/to/backup.db
 simfiment auth reset
 simfiment version
 ```
 
-還原時必須先停止伺服器。指令會先驗證備份、保留目前資料庫的 rollback 副本、替換資料庫、執行 migration，再次進行完整性檢查。
+登入後可在設定頁下載完整 `.db` 備份，或上傳備份完整取代目前帳本。還原前會先驗證與升級舊版 schema，成功後所有裝置都會登出，並改用備份當時的密碼登入。
 
 ## 生產部署
 
@@ -81,4 +79,4 @@ simfiment version
 docker compose up --build -d
 ```
 
-完整環境變數、備份排程與還原程序見 [docs/operations.md](./docs/operations.md)。
+完整環境變數、備份與還原行為見 [docs/operations.md](./docs/operations.md)。

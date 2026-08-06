@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, errorMessage, setCSRFToken } from "../../api/client";
 import type { Meta, Session } from "../../api/types";
 import { Button, CheckboxField, TextField } from "../../components/ui";
@@ -123,6 +123,7 @@ export function SetupPage({ meta }: { meta: Meta }) {
 export function LoginPage({ session }: { session?: Session }) {
   const { messages } = useI18n();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
   const mutation = useMutation({
@@ -144,6 +145,11 @@ export function LoginPage({ session }: { session?: Session }) {
           <h1>{messages.auth.loginTitle}</h1>
           <p>{messages.auth.loginIntro}</p>
         </div>
+        {searchParams.get("restored") === "1" ? (
+          <div className={styles.successNote} role="status">
+            {messages.auth.restoreComplete}
+          </div>
+        ) : null}
         <form
           className={styles.form}
           onSubmit={(event) => {

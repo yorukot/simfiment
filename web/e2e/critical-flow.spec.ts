@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const originalPassword = "playwright 測試密碼 1234";
 const replacementPassword = "playwright 新測試密碼 5678";
@@ -13,11 +14,11 @@ async function expectAccessible(page: Page) {
 }
 
 async function dismissNotifications(page: Page) {
-  const closeButtons = page.getByRole("button", { name: "關閉通知" });
-  while ((await closeButtons.count()) > 0) {
-    const count = await closeButtons.count();
-    await closeButtons.first().click();
-    await expect(closeButtons).toHaveCount(count - 1);
+  const notifications = page.getByRole("dialog", { name: "通知" });
+  while ((await notifications.count()) > 0) {
+    const count = await notifications.count();
+    await notifications.first().locator("button").last().click();
+    await expect(notifications).toHaveCount(count - 1);
   }
 }
 
@@ -224,6 +225,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await skippedOccurrence.getByRole("button", { name: "更多操作" }).click();
   await page.getByRole("menuitem", { name: "略過這一次" }).click();
   await expect(page.getByText("已略過這次週期項目。")).toBeVisible();
+  await dismissNotifications(page);
   await expectAccessible(page);
 
   await page.getByRole("link", { name: /設定/ }).click();
@@ -284,6 +286,21 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect(page.getByRole("link", { name: /E2E 小數幣別.*¥12/ })).toBeVisible();
   await page.getByRole("link", { name: /設定/ }).click();
   await dismissNotifications(page);
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下載完整備份" }).click();
+  const backupDownload = await downloadPromise;
+  expect(backupDownload.suggestedFilename()).toMatch(/^simfiment-backup-.*\.db$/);
+  const backupPath = await backupDownload.path();
+  if (!backupPath) throw new Error("Playwright did not retain the downloaded backup");
+
+  await page.getByRole("link", { name: /今天/ }).click();
+  await saveTransaction(page, {
+    amount: "1",
+    category: "飲食",
+    title: "E2E 備份後資料",
+  });
+  await expect(page.getByRole("link", { name: /E2E 備份後資料/ })).toBeVisible();
+  await page.getByRole("link", { name: /設定/ }).click();
   await page.getByRole("link", { name: "安全" }).click();
   await page.getByLabel("目前密碼").fill(originalPassword);
   await page.getByLabel(/^新密碼/).fill(replacementPassword);
@@ -296,6 +313,27 @@ test("fresh-install finance workflow", async ({ page }) => {
   await page.getByLabel("密碼").fill(replacementPassword);
   await page.getByRole("button", { name: "登入" }).click();
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /設定/ }).click();
+  await page.getByLabel("選擇備份檔").setInputFiles({
+    name: backupDownload.suggestedFilename(),
+    mimeType: "application/vnd.sqlite3",
+    buffer: await readFile(backupPath),
+  });
+  const restoreDialog = page.getByRole("dialog", { name: "以備份取代所有資料" });
+  await expect(
+    restoreDialog.getByText(backupDownload.suggestedFilename(), { exact: false }),
+  ).toBeVisible();
+  await restoreDialog.getByRole("button", { name: "取代所有資料" }).click();
+  await expect(page.getByRole("heading", { name: "登入 Simfiment" })).toBeVisible();
+  await expect(page.getByText("備份已還原。請使用備份當時的密碼重新登入。")).toBeVisible();
+  await page.getByLabel("密碼").fill(replacementPassword);
+  await page.getByRole("button", { name: "登入" }).click();
+  await expect(page.getByText("密碼不正確。")).toBeVisible();
+  await page.getByLabel("密碼").fill(originalPassword);
+  await page.getByRole("button", { name: "登入" }).click();
+  await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
+  await expect(page.getByText("E2E 備份後資料")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
     .toBe(true);

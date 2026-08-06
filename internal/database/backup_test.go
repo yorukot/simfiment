@@ -2,35 +2,54 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestBackupRestoreRoundTrip(t *testing.T) {
+func TestDownloadBackupAndOnlineRestoreRoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	now := time.Date(2026, time.August, 5, 8, 9, 10, 0, time.UTC)
 	sourceDir := t.TempDir()
 	sourceDB, err := Open(ctx, sourceDir)
 	if err != nil {
 		t.Fatalf("open source database: %v", err)
 	}
-	now := time.Date(2026, time.August, 5, 8, 9, 10, 0, time.UTC)
-	if _, err := sourceDB.ExecContext(ctx, `INSERT INTO categories
-		(kind, name, icon_key, sort_order, created_at, updated_at)
-		VALUES ('expense', 'Backup marker', '', 0, ?, ?)`, now.UnixMilli(), now.UnixMilli()); err != nil {
-		t.Fatalf("insert marker: %v", err)
+	defer sourceDB.Close()
+	seedInitializedDatabase(t, sourceDB, now, "backup-password-hash")
+	insertCategoryMarker(t, sourceDB, now, "expense", "Backup marker")
+	if _, err := sourceDB.ExecContext(ctx, `INSERT INTO sessions(
+		token_hash, csrf_token_hash, password_version, created_at, last_seen_at, expires_at
+	) VALUES (x'01', x'02', 1, ?, ?, ?)`, now.UnixMilli(), now.UnixMilli(), now.Add(time.Hour).UnixMilli()); err != nil {
+		t.Fatalf("insert source session: %v", err)
 	}
-	backup, err := CreateBackup(ctx, sourceDB, sourceDir, now)
+
+	backup, err := CreateDownloadBackup(ctx, sourceDB, sourceDir)
 	if err != nil {
-		t.Fatalf("create backup: %v", err)
+		t.Fatalf("create download backup: %v", err)
 	}
-	if err := sourceDB.Close(); err != nil {
-		t.Fatalf("close source database: %v", err)
-	}
+	defer os.Remove(backup.Path)
 	if mode := fileMode(t, backup.Path); mode.Perm() != 0o600 {
 		t.Fatalf("backup mode = %o, want 600", mode.Perm())
+	}
+	backupDB, err := sql.Open("sqlite", "file:"+backup.Path+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sessionCount int
+	if err := backupDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&sessionCount); err != nil {
+		t.Fatal(err)
+	}
+	_ = backupDB.Close()
+	if sessionCount != 0 {
+		t.Fatalf("download backup session count = %d, want 0", sessionCount)
+	}
+	if err := PrepareRestoreFile(ctx, backup.Path); err != nil {
+		t.Fatalf("prepare restore file: %v", err)
 	}
 
 	destinationDir := t.TempDir()
@@ -38,67 +57,111 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open destination database: %v", err)
 	}
-	if _, err := destinationDB.ExecContext(ctx, `INSERT INTO categories
-		(kind, name, icon_key, sort_order, created_at, updated_at)
-		VALUES ('income', 'Old destination marker', '', 0, ?, ?)`, now.UnixMilli(), now.UnixMilli()); err != nil {
-		t.Fatalf("insert destination marker: %v", err)
-	}
-	if err := destinationDB.Close(); err != nil {
-		t.Fatalf("close destination database: %v", err)
-	}
-
-	rollback, err := RestoreBackup(ctx, destinationDir, backup.Path, now.Add(time.Hour))
+	defer destinationDB.Close()
+	seedInitializedDatabase(t, destinationDB, now, "destination-password-hash")
+	insertCategoryMarker(t, destinationDB, now, "income", "Old destination marker")
+	emergencyPath, err := RestoreOnline(ctx, destinationDB, backup.Path, destinationDir)
 	if err != nil {
 		t.Fatalf("restore backup: %v", err)
 	}
-	if rollback == "" {
-		t.Fatal("expected rollback copy for existing database")
-	}
-	if _, err := os.Stat(rollback); err != nil {
-		t.Fatalf("stat rollback copy: %v", err)
+	if emergencyPath != "" {
+		t.Fatalf("emergency path = %q, want empty", emergencyPath)
 	}
 
-	restoredDB, err := Open(ctx, destinationDir)
-	if err != nil {
-		t.Fatalf("open restored database: %v", err)
+	assertCategoryCount(t, destinationDB, "Backup marker", 1)
+	assertCategoryCount(t, destinationDB, "Old destination marker", 0)
+	var passwordHash string
+	if err := destinationDB.QueryRowContext(ctx, "SELECT password_hash FROM auth_credentials WHERE id = 1").Scan(&passwordHash); err != nil {
+		t.Fatal(err)
 	}
-	defer restoredDB.Close()
-	var markerCount int
-	if err := restoredDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM categories WHERE name = 'Backup marker'").Scan(&markerCount); err != nil {
-		t.Fatalf("read restored marker: %v", err)
+	if passwordHash != "backup-password-hash" {
+		t.Fatalf("restored password hash = %q", passwordHash)
 	}
-	if markerCount != 1 {
-		t.Fatalf("restored marker count = %d, want 1", markerCount)
+	if err := destinationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&sessionCount); err != nil {
+		t.Fatal(err)
 	}
-	var oldCount int
-	if err := restoredDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM categories WHERE name = 'Old destination marker'").Scan(&oldCount); err != nil {
-		t.Fatalf("read destination marker: %v", err)
-	}
-	if oldCount != 0 {
-		t.Fatalf("old destination marker count = %d, want 0", oldCount)
+	if sessionCount != 0 {
+		t.Fatalf("restored session count = %d, want 0", sessionCount)
 	}
 	if mode := fileMode(t, filepath.Join(destinationDir, "simfiment.db")); mode.Perm() != 0o600 {
 		t.Fatalf("restored database mode = %o, want 600", mode.Perm())
 	}
+	if matches, err := filepath.Glob(filepath.Join(destinationDir, ".simfiment-snapshot-*.db")); err != nil || len(matches) != 0 {
+		t.Fatalf("rollback snapshots after success = %v, err = %v", matches, err)
+	}
+}
 
-	freshDir := t.TempDir()
-	rollback, err = RestoreBackup(ctx, freshDir, backup.Path, now.Add(2*time.Hour))
+func TestPrepareRestoreRejectsInvalidAndNewerBackups(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	invalid := filepath.Join(t.TempDir(), "invalid.db")
+	if err := os.WriteFile(invalid, []byte("not sqlite"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrepareRestoreFile(ctx, invalid); !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("invalid backup error = %v", err)
+	}
+
+	dir := t.TempDir()
+	db, err := Open(ctx, dir)
 	if err != nil {
-		t.Fatalf("restore into fresh directory: %v", err)
+		t.Fatal(err)
 	}
-	if rollback != "" {
-		t.Fatalf("fresh restore rollback path = %q, want empty", rollback)
-	}
-	freshDB, err := Open(ctx, freshDir)
+	now := time.Date(2026, time.August, 5, 8, 9, 10, 0, time.UTC)
+	seedInitializedDatabase(t, db, now, "backup-password-hash")
+	backup, err := CreateDownloadBackup(ctx, db, dir)
 	if err != nil {
-		t.Fatalf("open fresh restore: %v", err)
+		t.Fatal(err)
 	}
-	defer freshDB.Close()
-	if err := freshDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM categories WHERE name = 'Backup marker'").Scan(&markerCount); err != nil {
-		t.Fatalf("read fresh restored marker: %v", err)
+	defer os.Remove(backup.Path)
+	_ = db.Close()
+	backupDB, err := sql.Open("sqlite", "file:"+backup.Path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if markerCount != 1 {
-		t.Fatalf("fresh restored marker count = %d, want 1", markerCount)
+	if _, err := backupDB.ExecContext(ctx, `INSERT INTO schema_migrations(version, name, checksum, applied_at)
+		VALUES (999, 'future.sql', 'future', ?)`, now.UnixMilli()); err != nil {
+		t.Fatal(err)
+	}
+	_ = backupDB.Close()
+	if err := PrepareRestoreFile(ctx, backup.Path); !errors.Is(err, ErrNewerSchema) {
+		t.Fatalf("newer backup error = %v", err)
+	}
+}
+
+func seedInitializedDatabase(t *testing.T, db *sql.DB, now time.Time, passwordHash string) {
+	t.Helper()
+	ms := now.UnixMilli()
+	if _, err := db.Exec(`INSERT INTO app_settings(
+		id, initialized_at, currency_code, currency_exponent, timezone, locale, theme,
+		automatic_location_enabled, created_at, updated_at
+	) VALUES (1, ?, 'TWD', 0, 'Asia/Taipei', 'zh-TW', 'system', 0, ?, ?)`, ms, ms, ms); err != nil {
+		t.Fatalf("seed app settings: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO auth_credentials(
+		id, password_hash, password_version, created_at, updated_at
+	) VALUES (1, ?, 1, ?, ?)`, passwordHash, ms, ms); err != nil {
+		t.Fatalf("seed credentials: %v", err)
+	}
+}
+
+func insertCategoryMarker(t *testing.T, db *sql.DB, now time.Time, kind, name string) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO categories(
+		kind, name, icon_key, sort_order, created_at, updated_at
+	) VALUES (?, ?, '', 0, ?, ?)`, kind, name, now.UnixMilli(), now.UnixMilli()); err != nil {
+		t.Fatalf("insert marker: %v", err)
+	}
+}
+
+func assertCategoryCount(t *testing.T, db *sql.DB, name string, want int) {
+	t.Helper()
+	var got int
+	if err := db.QueryRow("SELECT COUNT(*) FROM categories WHERE name = ?", name).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("category %q count = %d, want %d", name, got, want)
 	}
 }
 

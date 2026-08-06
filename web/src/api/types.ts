@@ -32,8 +32,6 @@ export type Session = {
 
 export type OperationsStatus = {
   databaseHealthy: boolean;
-  backupCount: number;
-  lastBackupAt?: string;
 };
 
 export type Category = {

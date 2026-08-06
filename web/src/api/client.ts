@@ -37,14 +37,15 @@ export function onUnauthorized(handler: () => void) {
   };
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 15_000): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   const headers = new Headers(init.headers);
   headers.set("Accept-Language", currentLocale());
-  if (init.body !== undefined) headers.set("Content-Type", "application/json");
+  if (typeof init.body === "string" && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
   if (mutation && csrfToken) headers.set("X-CSRF-Token", csrfToken);
   try {
     const response = await fetch(path, {
@@ -95,6 +96,16 @@ export const api = {
   patch: <I, O>(path: string, input: I) =>
     request<O>(path, { method: "PATCH", body: JSON.stringify(input) }),
   delete: <O>(path: string) => request<O>(path, { method: "DELETE" }),
+  uploadBackup: (path: string, file: File) =>
+    request<void>(
+      path,
+      {
+        method: "POST",
+        body: file,
+        headers: { "Content-Type": "application/vnd.sqlite3" },
+      },
+      5 * 60_000,
+    ),
 };
 
 export function errorMessage(error: unknown): string {

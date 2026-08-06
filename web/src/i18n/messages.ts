@@ -65,6 +65,7 @@ const zhTW = {
     welcomeBack: "歡迎回來",
     loginTitle: "登入 Simfiment",
     loginIntro: "你的資料只保存在這個 Simfiment 安裝環境中。",
+    restoreComplete: "備份已還原。請使用備份當時的密碼重新登入。",
     login: "登入",
   },
   states: {
@@ -256,6 +257,17 @@ const zhTW = {
       `新幣別只支援 ${digits} 位小數，超出的位數會直接截斷、不會四捨五入。例如 ${example}。`,
     confirmCurrencyChange: "我了解這會更新所有歷史與週期資料",
     confirmCurrencyAction: "確認變更幣別",
+    fullBackup: "完整備份與還原",
+    fullBackupDescription: "下載整個 Simfiment 帳本，或從備份完整取代目前資料。",
+    backupSensitive: "備份包含財務資料、位置、設定與密碼雜湊，請存放在安全的位置。",
+    downloadBackup: "下載完整備份",
+    chooseBackup: "選擇備份檔",
+    restoreBackupTitle: "以備份取代所有資料",
+    restoreBackupDescription: (filename: string) => `即將使用「${filename}」還原 Simfiment。`,
+    restoreBackupWarning:
+      "目前的交易、分類、週期、設定與登入密碼都會被備份內容取代。此動作無法復原。",
+    restoreBackupPassword: "完成後所有裝置都會登出，請使用備份當時的密碼重新登入。",
+    confirmRestoreBackup: "取代所有資料",
     dataExport: "資料匯出",
     dataExportDescription: "下載所有未刪除交易的副本，方便攜出或在試算表中分析。",
     dataExportContents: "CSV 包含金額、分類、來源，以及已附加的輸入位置資料。",
@@ -265,12 +277,6 @@ const zhTW = {
     healthy: "正常",
     checking: "檢查中",
     needsCheck: "需要檢查",
-    backups: "備份",
-    backupCount: (count: number) => `${count.toLocaleString("zh-TW")} 份`,
-    latestBackup: "最近備份",
-    none: "尚無",
-    backupHintBefore: "備份由伺服器執行",
-    backupHintAfter: "建立，介面不提供資料庫下載。",
     eyebrow: "偏好與安全",
     title: "設定",
     intro: "管理分類、位置、資料匯出、外觀與登入密碼。",
@@ -402,6 +408,7 @@ const en: Messages = {
     welcomeBack: "Welcome back",
     loginTitle: "Sign in to Simfiment",
     loginIntro: "Your data stays in this Simfiment installation.",
+    restoreComplete: "The backup was restored. Sign in with the password saved in that backup.",
     login: "Sign in",
   },
   states: {
@@ -599,6 +606,21 @@ const en: Messages = {
       `The new currency supports ${digits} decimal places. Extra digits are truncated without rounding. For example, ${example}.`,
     confirmCurrencyChange: "I understand this updates all historical and recurring data",
     confirmCurrencyAction: "Confirm currency change",
+    fullBackup: "Full backup and restore",
+    fullBackupDescription:
+      "Download your complete Simfiment ledger or replace current data from a backup.",
+    backupSensitive:
+      "Backups contain financial data, locations, settings, and a password hash. Store them securely.",
+    downloadBackup: "Download full backup",
+    chooseBackup: "Choose backup file",
+    restoreBackupTitle: "Replace all data from a backup",
+    restoreBackupDescription: (filename: string) =>
+      `Simfiment will be restored from “${filename}”.`,
+    restoreBackupWarning:
+      "Current transactions, categories, recurring items, settings, and the sign-in password will be replaced. This cannot be undone.",
+    restoreBackupPassword:
+      "Every device will be signed out. Sign in again with the password saved in the backup.",
+    confirmRestoreBackup: "Replace all data",
     dataExport: "Data export",
     dataExportDescription:
       "Download a copy of every non-deleted transaction for portability or spreadsheet analysis.",
@@ -610,13 +632,6 @@ const en: Messages = {
     healthy: "Healthy",
     checking: "Checking",
     needsCheck: "Needs attention",
-    backups: "Backups",
-    backupCount: (count: number) =>
-      `${count.toLocaleString("en")} ${count === 1 ? "backup" : "backups"}`,
-    latestBackup: "Latest backup",
-    none: "None",
-    backupHintBefore: "Backups are created on the server with",
-    backupHintAfter: ". The interface does not provide database downloads.",
     eyebrow: "Preferences and security",
     title: "Settings",
     intro: "Manage categories, location, data exports, appearance, language, and your password.",
