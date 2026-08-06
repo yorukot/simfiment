@@ -12,6 +12,15 @@ async function expectAccessible(page: Page) {
   ).toEqual([]);
 }
 
+async function dismissNotifications(page: Page) {
+  const closeButtons = page.getByRole("button", { name: "關閉通知" });
+  while ((await closeButtons.count()) > 0) {
+    const count = await closeButtons.count();
+    await closeButtons.first().click();
+    await expect(closeButtons).toHaveCount(count - 1);
+  }
+}
+
 async function openEntry(page: Page) {
   await page.getByRole("button", { name: "記錄交易" }).last().click();
   await expect(page.getByRole("heading", { name: "記錄交易" })).toBeVisible();
@@ -274,12 +283,14 @@ test("fresh-install finance workflow", async ({ page }) => {
   await page.getByRole("link", { name: /今天/ }).click();
   await expect(page.getByRole("link", { name: /E2E 小數幣別.*¥12/ })).toBeVisible();
   await page.getByRole("link", { name: /設定/ }).click();
+  await dismissNotifications(page);
   await page.getByRole("link", { name: "安全" }).click();
   await page.getByLabel("目前密碼").fill(originalPassword);
   await page.getByLabel(/^新密碼/).fill(replacementPassword);
   await page.getByLabel("確認新密碼").fill(replacementPassword);
   await page.getByRole("button", { name: "更新密碼" }).click();
   await expect(page.getByText("密碼已變更，其他登入階段已撤銷。")).toBeVisible();
+  await dismissNotifications(page);
   await page.getByRole("button", { name: "登出" }).click();
   await expect(page.getByRole("heading", { name: "登入 Simfiment" })).toBeVisible();
   await page.getByLabel("密碼").fill(replacementPassword);
