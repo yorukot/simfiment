@@ -487,23 +487,29 @@
 }
 .activityGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
-  height: 132px;
-  align-items: end;
+  grid-template-columns: repeat(auto-fit, minmax(24px, 1fr));
+  height: 200px;
   gap: 3px;
-  padding: 20px;
+  padding: 20px 20px 10px;
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-surface-container-lowest);
 }
 .activityDay {
-  display: flex;
+  display: grid;
   height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.activityBars {
+  display: flex;
+  min-height: 0;
   align-items: end;
   justify-content: center;
   gap: 1px;
 }
 .activityBar {
+  position: relative;
   width: min(45%, 8px);
   min-height: 2px;
   border-radius: 3px 3px 0 0;
@@ -512,8 +518,30 @@
 .activityIncome {
   background: var(--income);
 }
+.activityBarTruncated::after {
+  position: absolute;
+  top: 9px;
+  right: 0;
+  left: 0;
+  height: 7px;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 2px,
+    var(--md-sys-color-surface-container-lowest) 2px 4px
+  );
+  content: "";
+}
+.activityDate {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
 .activityLegend {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   margin-top: 8px;
   color: var(--text-muted);
@@ -1243,6 +1271,14 @@
   }
   .activityLegend {
     flex-wrap: wrap;
+  }
+  .activityGrid {
+    grid-template-columns: repeat(auto-fit, minmax(8px, 1fr));
+    gap: 1px;
+    padding-inline: 12px;
+  }
+  .activityDay:not(:first-child):not(:nth-child(5n)) .activityDate {
+    visibility: hidden;
   }
   .locationMapHeader {
     align-items: flex-start;

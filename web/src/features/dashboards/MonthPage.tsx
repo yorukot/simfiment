@@ -11,6 +11,39 @@ import { Button, Chip, IconButton } from "../../components/ui";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
+type DailySeriesPoint = MonthlyDashboard["dailySeries"][number];
+
+export type ActivityScale = {
+  ceiling: number;
+  isTruncated: boolean;
+};
+
+const TRUNCATION_THRESHOLD = 4;
+const REFERENCE_HEIGHT = 0.7;
+
+export function activityScale(points: DailySeriesPoint[]): ActivityScale {
+  const values = points
+    .flatMap((point) => [point.expenseMinor, point.incomeMinor])
+    .filter((value) => value > 0)
+    .sort((left, right) => right - left);
+  const maximum = values[0] ?? 1;
+  const nextLowerValue = values.find((value) => value < maximum);
+
+  if (nextLowerValue && maximum >= nextLowerValue * TRUNCATION_THRESHOLD) {
+    return {
+      ceiling: nextLowerValue / REFERENCE_HEIGHT,
+      isTruncated: true,
+    };
+  }
+
+  return { ceiling: maximum, isTruncated: false };
+}
+
+export function activityBarHeight(value: number, scale: ActivityScale): number {
+  if (value === 0) return 2;
+  return Math.min(100, Math.max(3, (value / scale.ceiling) * 100));
+}
+
 export function MonthPage({ settings }: { settings: Settings }) {
   const { locale, messages } = useI18n();
   const params = useParams();
@@ -37,10 +70,7 @@ export function MonthPage({ settings }: { settings: Settings }) {
     return <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />;
   if (transactions.isError)
     return <ErrorState error={transactions.error} onRetry={() => void transactions.refetch()} />;
-  const max = Math.max(
-    ...dashboard.data.dailySeries.flatMap((point) => [point.expenseMinor, point.incomeMinor]),
-    1,
-  );
+  const scale = activityScale(dashboard.data.dailySeries);
   return (
     <>
       <header className={styles.pageHeader}>
@@ -135,25 +165,34 @@ export function MonthPage({ settings }: { settings: Settings }) {
                 ),
               )}
             >
-              <span
-                className={`${styles.activityBar} ${styles.activityIncome}`}
-                style={{
-                  height: `${point.incomeMinor === 0 ? 2 : Math.max(3, (point.incomeMinor / max) * 100)}%`,
-                }}
-              />
-              <span
-                className={styles.activityBar}
-                style={{
-                  height: `${point.expenseMinor === 0 ? 2 : Math.max(3, (point.expenseMinor / max) * 100)}%`,
-                }}
-              />
+              <span className={styles.activityBars} aria-hidden="true">
+                <span
+                  className={`${styles.activityBar} ${styles.activityIncome} ${
+                    point.incomeMinor > scale.ceiling ? styles.activityBarTruncated : ""
+                  }`}
+                  style={{ height: `${activityBarHeight(point.incomeMinor, scale)}%` }}
+                />
+                <span
+                  className={`${styles.activityBar} ${
+                    point.expenseMinor > scale.ceiling ? styles.activityBarTruncated : ""
+                  }`}
+                  style={{ height: `${activityBarHeight(point.expenseMinor, scale)}%` }}
+                />
+              </span>
+              <span className={styles.activityDate} aria-hidden="true">
+                {point.date.slice(-2)}
+              </span>
             </div>
           ))}
         </div>
         <div className={styles.activityLegend}>
           <span>{messages.common.income}</span>
           <span>{messages.common.expense}</span>
-          <span>{messages.dashboard.dailyChartDescription}</span>
+          <span>
+            {scale.isTruncated
+              ? messages.dashboard.dailyChartTruncatedDescription
+              : messages.dashboard.dailyChartDescription}
+          </span>
         </div>
         <ul className={styles.srOnly}>
           {dashboard.data.dailySeries.map((point) => (

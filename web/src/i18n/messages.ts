@@ -105,6 +105,7 @@ const zhTW = {
     dailyChartPoint: (date: string, income: string, expense: string) =>
       `${date}: 收入 ${income}，支出 ${expense}`,
     dailyChartDescription: "每組代表一天；完整數值另列供輔助技術讀取",
+    dailyChartTruncatedDescription: "斷點代表已省略極端差距；完整數值另列供輔助技術讀取",
     monthlyTransactions: "本月交易",
     emptyMonthTitle: "這個月還沒有交易",
     emptyMonthBody: "實際確認的收入與支出會顯示在這裡，待處理週期項目不會計入。",
@@ -453,6 +454,8 @@ const en: Messages = {
       `${date}: income ${income}, expense ${expense}`,
     dailyChartDescription:
       "Each group represents one day; complete values are listed for assistive technology",
+    dailyChartTruncatedDescription:
+      "A break omits an extreme gap; complete values are listed for assistive technology",
     monthlyTransactions: "This month’s transactions",
     emptyMonthTitle: "No transactions this month",
     emptyMonthBody:
