@@ -555,7 +555,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
           <h2>{messages.recurring.nextThirtyDays}</h2>
         </div>
         {preview.data.length ? (
-          <div className={styles.list}>
+          <Card className={styles.list} padded={false}>
             {preview.data.map((item, index) => (
               <div
                 className={styles.transactionRow}
@@ -579,7 +579,7 @@ export function RecurringPage({ settings }: { settings: Settings }) {
                 />
               </div>
             ))}
-          </div>
+          </Card>
         ) : (
           <EmptyState title={messages.recurring.emptyPreviewTitle}>
             {messages.recurring.emptyPreviewBody}

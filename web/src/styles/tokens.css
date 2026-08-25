@@ -39,7 +39,6 @@
   --sim-expense: #a33d32;
   --sim-expense-container: #ffdad5;
   --sim-warning: #7a5700;
-  --sim-grid: rgba(23, 25, 28, 0.045);
   --md-sys-shape-corner-extra-small: 4px;
   --md-sys-shape-corner-small: 8px;
   --md-sys-shape-corner-medium: 12px;
@@ -133,7 +132,6 @@
   --sim-expense: #ffb4aa;
   --sim-expense-container: #55201a;
   --sim-warning: #e8c36b;
-  --sim-grid: rgba(255, 255, 255, 0.04);
   --brand-hover: #ffffff;
 }
 

@@ -274,7 +274,6 @@
   max-height: min(320px, var(--available-height));
   min-width: var(--anchor-width);
   overflow-y: auto;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-small);
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
@@ -316,7 +315,6 @@
   width: min(420px, var(--available-width));
   max-height: min(420px, var(--available-height));
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-small);
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
@@ -396,7 +394,6 @@
 .iconPickerPopup {
   width: min(360px, calc(100vw - 16px));
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
@@ -759,7 +756,6 @@
 }
 .dialogPopup,
 .drawerPopup {
-  border: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface);
   box-shadow: var(--md-sys-elevation-3);
@@ -844,7 +840,6 @@
 }
 .menuPopup {
   min-width: 190px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-small);
   background: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);

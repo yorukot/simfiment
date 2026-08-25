@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, PageLoading } from "../../components/States";
 import { addDays, formatDate, todayInTimezone } from "../../lib/date";
 import { TransactionRow } from "../transactions/TransactionRow";
 import { CategoryBars, Summary } from "./DashboardParts";
-import { Button, Chip, Icon, IconButton } from "../../components/ui";
+import { Button, Card, Chip, Icon, IconButton } from "../../components/ui";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
@@ -134,7 +134,7 @@ export function TodayPage({
           <h2>{messages.dashboard.transactions}</h2>
         </div>
         {transactions.data.length ? (
-          <div className={styles.list}>
+          <Card className={styles.list} padded={false}>
             {transactions.data.map((item) => (
               <TransactionRow
                 key={item.id}
@@ -143,7 +143,7 @@ export function TodayPage({
                 currencyExponent={settings.currencyExponent}
               />
             ))}
-          </div>
+          </Card>
         ) : (
           <EmptyState
             title={messages.dashboard.emptyDayTitle}

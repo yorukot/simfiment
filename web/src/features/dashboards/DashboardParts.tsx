@@ -1,6 +1,6 @@
 import type { CategoryTotal, Totals } from "../../api/types";
 import { MoneyText } from "../../components/MoneyText";
-import { CategoryIcon } from "../../components/ui";
+import { Card, CategoryIcon } from "../../components/ui";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
@@ -16,7 +16,7 @@ export function Summary({
   const { messages } = useI18n();
   return (
     <div className={styles.summaryGrid}>
-      <div className={`${styles.summaryCard} ${styles.summaryIncome}`}>
+      <Card className={`${styles.summaryCard} ${styles.summaryIncome}`}>
         <span className={styles.summaryLabel}>{messages.common.income}</span>
         <MoneyText
           className={styles.summaryValue}
@@ -25,8 +25,8 @@ export function Summary({
           exponent={exponent}
           kind="income"
         />
-      </div>
-      <div className={`${styles.summaryCard} ${styles.summaryExpense}`}>
+      </Card>
+      <Card className={`${styles.summaryCard} ${styles.summaryExpense}`}>
         <span className={styles.summaryLabel}>{messages.common.expense}</span>
         <MoneyText
           className={styles.summaryValue}
@@ -35,8 +35,8 @@ export function Summary({
           exponent={exponent}
           kind="expense"
         />
-      </div>
-      <div className={`${styles.summaryCard} ${styles.summaryNet}`}>
+      </Card>
+      <Card className={`${styles.summaryCard} ${styles.summaryNet}`}>
         <span className={styles.summaryLabel}>{messages.common.net}</span>
         <MoneyText
           className={styles.summaryValue}
@@ -45,7 +45,7 @@ export function Summary({
           exponent={exponent}
           kind="net"
         />
-      </div>
+      </Card>
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function CategoryBars({
 }) {
   const total = items.reduce((sum, item) => sum + item.amountMinor, 0);
   return (
-    <div className={`${styles.card} ${styles.bars}`}>
+    <Card className={styles.bars}>
       {items.map((item) => {
         const share = categoryShare(item.amountMinor, total);
         return (
@@ -96,7 +96,7 @@ export function CategoryBars({
           </div>
         );
       })}
-    </div>
+    </Card>
   );
 }
 

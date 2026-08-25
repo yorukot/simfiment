@@ -874,7 +874,7 @@ export function ActionMenu({ label, items }: { label?: string; items: ActionMenu
 }
 
 export function Card({
-  variant = "outlined",
+  variant = "filled",
   padded = true,
   className,
   children,

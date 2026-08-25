@@ -1,9 +1,6 @@
 .appFrame {
   min-height: 100vh;
-  background-image:
-    linear-gradient(var(--sim-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--sim-grid) 1px, transparent 1px);
-  background-size: 72px 72px;
+  background: var(--md-sys-color-background);
 }
 .sidebar {
   display: none;
@@ -11,7 +8,7 @@
 .main {
   min-height: 100vh;
   padding: 28px 16px 112px;
-  background: color-mix(in srgb, var(--md-sys-color-background) 96%, transparent);
+  background: var(--md-sys-color-background);
 }
 .content {
   width: min(100%, 1080px);
@@ -25,14 +22,14 @@
   gap: 10px;
   margin: 0 auto 20px;
   padding: 10px 12px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface-variant);
   font-size: 0.875rem;
 }
 .syncBannerError {
-  border-color: color-mix(in srgb, var(--md-sys-color-error) 45%, transparent);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
 }
 .syncBanner button {
   min-height: 36px;
@@ -143,8 +140,8 @@
   min-height: 80px;
   padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
     max(8px, env(safe-area-inset-left));
-  border-top: 1px solid var(--md-sys-color-outline-variant);
   background: color-mix(in srgb, var(--md-sys-color-surface-container) 94%, transparent);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(18px);
 }
 .bottomLink {
@@ -191,7 +188,7 @@
   height: 56px;
   place-items: center;
   margin-top: -31px;
-  border: 4px solid var(--md-sys-color-background);
+  border: 0;
   border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
@@ -262,15 +259,6 @@
   background: var(--surface);
   color: var(--text);
 }
-.card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
-}
-.cardPadding {
-  padding: 18px;
-}
 .section {
   margin-top: 24px;
 }
@@ -290,31 +278,20 @@
   gap: 10px;
 }
 .summaryCard {
-  position: relative;
   min-width: 0;
   overflow: hidden;
   padding: 18px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-lowest);
+  background: var(--md-sys-color-surface-container-low);
 }
-.summaryCard::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 3px;
-  background: var(--md-sys-color-outline);
-  content: "";
+.summaryIncome {
+  background: color-mix(in srgb, var(--sim-income) 10%, var(--md-sys-color-surface-container-low));
 }
-.summaryIncome::before {
-  background: var(--sim-income);
+.summaryExpense {
+  background: color-mix(in srgb, var(--sim-expense) 10%, var(--md-sys-color-surface-container-low));
 }
-.summaryExpense::before {
-  background: var(--sim-expense);
-}
-.summaryNet::before {
-  background: var(--sim-signal);
+.summaryNet {
+  background: color-mix(in srgb, var(--sim-signal) 9%, var(--md-sys-color-surface-container-low));
 }
 .summaryCard:last-child {
   grid-column: 1 / -1;
@@ -369,22 +346,27 @@
 }
 .list {
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-lowest);
+  background: var(--md-sys-color-surface-container-low);
 }
 .transactionRow {
+  position: relative;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   min-height: 76px;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   transition: background var(--md-sys-motion-duration-short);
 }
-.transactionRow:last-child {
-  border-bottom: 0;
+.transactionRow:not(:last-child)::after {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 72px;
+  height: 1px;
+  background: color-mix(in srgb, var(--md-sys-color-outline-variant) 45%, transparent);
+  content: "";
 }
 .transactionRow:hover {
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 6%, transparent);
@@ -441,7 +423,6 @@
   display: grid;
   gap: 18px;
   padding: 20px;
-  background: var(--md-sys-color-surface-container-lowest);
 }
 .barRow {
   min-width: 0;
@@ -476,10 +457,12 @@
 .barPlot {
   height: 6px;
   overflow: hidden;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
 }
 .barFill {
   height: 100%;
-  border-radius: 0 3px 3px 0;
+  border-radius: var(--md-sys-shape-corner-full);
   background: var(--expense);
 }
 .barFillIncome {
@@ -491,9 +474,8 @@
   height: 200px;
   gap: 3px;
   padding: 20px 20px 10px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-lowest);
+  background: var(--md-sys-color-surface-container-low);
 }
 .activityDay {
   display: grid;
@@ -527,7 +509,7 @@
   background: repeating-linear-gradient(
     135deg,
     transparent 0 2px,
-    var(--md-sys-color-surface-container-lowest) 2px 4px
+    var(--md-sys-color-surface-container-low) 2px 4px
   );
   content: "";
 }
@@ -666,8 +648,6 @@
 }
 .formError {
   padding: 12px 16px;
-  border: 1px solid
-    color-mix(in srgb, var(--md-sys-color-error) 35%, var(--md-sys-color-outline-variant));
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
@@ -675,7 +655,6 @@
 }
 .successNote {
   padding: 12px 16px;
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 35%, var(--border));
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
@@ -762,8 +741,8 @@
   z-index: 2;
   margin: 0 -20px -20px;
   padding: 14px 20px max(14px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--md-sys-color-outline-variant);
   background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 94%, transparent);
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(12px);
 }
 @media (max-width: 599px) {
@@ -777,25 +756,17 @@
   place-items: center;
   padding: 32px 16px;
   background-color: var(--md-sys-color-background);
-  background-image:
-    radial-gradient(
-      circle at 78% 18%,
-      color-mix(in srgb, var(--sim-signal) 14%, transparent),
-      transparent 26%
-    ),
-    linear-gradient(var(--sim-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--sim-grid) 1px, transparent 1px);
-  background-size:
-    auto,
-    56px 56px,
-    56px 56px;
+  background-image: radial-gradient(
+    circle at 78% 18%,
+    color-mix(in srgb, var(--sim-signal) 14%, transparent),
+    transparent 26%
+  );
 }
 .authCard {
   width: min(100%, 460px);
   padding: 30px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-extra-large);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 96%, transparent);
+  background: var(--md-sys-color-surface-container-low);
   box-shadow: var(--md-sys-elevation-3);
   backdrop-filter: blur(16px);
 }
@@ -831,9 +802,8 @@
 .emptyState,
 .stateCard {
   padding: 36px 20px;
-  border: 1px dashed var(--md-sys-color-outline);
   border-radius: var(--md-sys-shape-corner-large);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 70%, transparent);
+  background: var(--md-sys-color-surface-container-low);
   color: var(--text-muted);
   text-align: center;
 }
@@ -1039,36 +1009,29 @@
 }
 .categoryList {
   overflow: hidden;
-  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-large);
-}
-.settingCard {
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.settingCard h2 {
-  margin-bottom: 6px;
-}
-.settingCard > p {
-  color: var(--text-muted);
-  line-height: 1.55;
+  background: var(--md-sys-color-surface-container);
 }
 .categoryManageRow,
 .ruleRow,
 .occurrenceRow {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 72px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
-.categoryManageRow:last-child,
-.ruleRow:last-child,
-.occurrenceRow:last-child {
-  border-bottom: 0;
+.categoryManageRow:not(:last-child)::after,
+.ruleRow:not(:last-child)::after,
+.occurrenceRow:not(:last-child)::after {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 72px;
+  height: 1px;
+  background: color-mix(in srgb, var(--md-sys-color-outline-variant) 45%, transparent);
+  content: "";
 }
 .rowGrow {
   min-width: 0;
@@ -1145,7 +1108,7 @@
 }
 .locationMap {
   padding: 0 18px 18px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
 }
 .locationMapHeader {
   display: flex;
@@ -1183,7 +1146,7 @@
   display: block;
   width: 100%;
   height: 240px;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 0;
   border-radius: var(--md-sys-shape-corner-medium);
   background: var(--md-sys-color-surface-container);
 }
@@ -1302,12 +1265,7 @@
     height: 100vh;
     flex-direction: column;
     padding: 24px 12px;
-    border-right: 1px solid var(--md-sys-color-outline-variant);
     background-color: var(--md-sys-color-surface-container-low);
-    background-image:
-      linear-gradient(var(--sim-grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--sim-grid) 1px, transparent 1px);
-    background-size: 48px 48px;
   }
   .brand {
     justify-content: center;

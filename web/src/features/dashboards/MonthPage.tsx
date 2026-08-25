@@ -7,7 +7,7 @@ import { addMonths, formatMonth, monthInTimezone } from "../../lib/date";
 import { formatMoneyMinor } from "../../lib/money";
 import { TransactionRow } from "../transactions/TransactionRow";
 import { CategoryBars, Summary } from "./DashboardParts";
-import { Button, Chip, IconButton } from "../../components/ui";
+import { Button, Card, Chip, IconButton } from "../../components/ui";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
 
@@ -221,7 +221,7 @@ export function MonthPage({ settings }: { settings: Settings }) {
           <h2>{messages.dashboard.monthlyTransactions}</h2>
         </div>
         {transactions.data.length ? (
-          <div className={styles.list}>
+          <Card className={styles.list} padded={false}>
             {transactions.data.map((item) => (
               <TransactionRow
                 key={item.id}
@@ -230,7 +230,7 @@ export function MonthPage({ settings }: { settings: Settings }) {
                 currencyExponent={settings.currencyExponent}
               />
             ))}
-          </div>
+          </Card>
         ) : (
           <EmptyState title={messages.dashboard.emptyMonthTitle}>
             {messages.dashboard.emptyMonthBody}

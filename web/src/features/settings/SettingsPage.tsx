@@ -711,7 +711,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
         <h3>{title}</h3>
         <Chip>{messages.settings.activeCount(active.length)}</Chip>
       </div>
-      <div className={styles.categoryList}>
+      <Card className={styles.categoryList} padded={false}>
         {items.map((item) => (
           <div key={item.id} className={styles.categoryManageRow}>
             <span className={styles.rowCategoryIcon}>
@@ -775,7 +775,7 @@ function CategoryManager({ kind, title, items }: { kind: Kind; title: string; it
             />
           </div>
         ))}
-      </div>
+      </Card>
       <div className={styles.categoryComposer}>
         <TextField
           label={messages.settings.addCategory(title)}
