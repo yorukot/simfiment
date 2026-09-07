@@ -23,7 +23,9 @@ async function dismissNotifications(page: Page) {
 }
 
 async function openEntry(page: Page) {
-  await page.getByRole("button", { name: "記錄交易" }).last().click();
+  await page.keyboard.press("Escape");
+  await page.locator("body").click({ position: { x: 1, y: 1 } });
+  await page.keyboard.press("n");
   await expect(page.getByRole("heading", { name: "記錄交易" })).toBeVisible();
   const amountInput = page.getByRole("textbox", { name: /金額/ });
   await expect(amountInput).toBeFocused();
@@ -61,7 +63,7 @@ async function saveTransaction(
 }
 
 test("fresh-install finance workflow", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await page.goto("/");
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
     "href",
@@ -74,7 +76,7 @@ test("fresh-install finance workflow", async ({ page }) => {
     name: "Simfiment",
     short_name: "Simfiment",
     display: "standalone",
-    start_url: "/today",
+    start_url: "/entry",
     background_color: "#0f1113",
     theme_color: "#0f1113",
     icons: expect.arrayContaining([
@@ -94,6 +96,8 @@ test("fresh-install finance workflow", async ({ page }) => {
   await page.getByLabel("確認密碼").fill(originalPassword);
   await expect(page.getByRole("button", { name: "帳本幣別" })).toContainText("TWD");
   await page.getByRole("button", { name: "完成設定" }).click();
+  await expect(page).toHaveURL(/\/entry$/);
+  await page.getByRole("link", { name: "今天", exact: true }).click();
   await expect(page.getByRole("heading", { name: /年.*月.*日/ })).toBeVisible();
 
   await saveTransaction(page, { amount: "180", category: "飲食" });
@@ -192,6 +196,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect(page.getByRole("img", { name: /每日收入與支出長條圖/ })).toBeVisible();
   await expectAccessible(page);
 
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /週期/ }).click();
   const today = await page.evaluate(() =>
     new Intl.DateTimeFormat("sv-SE", {
@@ -228,6 +233,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await dismissNotifications(page);
   await expectAccessible(page);
 
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await expectAccessible(page);
   await page.getByRole("link", { name: "分類", exact: true }).click();
@@ -272,6 +278,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   });
   await expect(page.getByRole("link", { name: /E2E 小數幣別.*US\$12\.34/ })).toBeVisible();
 
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await page.getByRole("button", { name: "帳本幣別" }).click();
   await page.getByRole("searchbox", { name: "搜尋幣別" }).fill("JPY");
@@ -284,6 +291,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect(page.getByRole("button", { name: "帳本幣別" })).toContainText("JPY");
   await page.getByRole("link", { name: /今天/ }).click();
   await expect(page.getByRole("link", { name: /E2E 小數幣別.*¥12/ })).toBeVisible();
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await dismissNotifications(page);
   const downloadPromise = page.waitForEvent("download");
@@ -300,6 +308,7 @@ test("fresh-install finance workflow", async ({ page }) => {
     title: "E2E 備份後資料",
   });
   await expect(page.getByRole("link", { name: /E2E 備份後資料/ })).toBeVisible();
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await page.getByRole("link", { name: "安全" }).click();
   await page.getByLabel("目前密碼").fill(originalPassword);
@@ -317,6 +326,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await page.getByRole("button", { name: "登入" }).click();
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
 
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await page.getByLabel("選擇備份檔").setInputFiles({
     name: backupDownload.suggestedFilename(),
@@ -339,6 +349,7 @@ test("fresh-install finance workflow", async ({ page }) => {
   await page.getByLabel("密碼").fill(originalPassword);
   await page.getByRole("button", { name: "登入" }).click();
   await expect(page.getByRole("link", { name: /今天/ })).toBeVisible();
+  await page.getByRole("link", { name: "今天", exact: true }).click();
   await expect(page.getByText("E2E 備份後資料")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => Boolean(localStorage.getItem("simfiment.startup-snapshot"))))
@@ -374,6 +385,7 @@ test("fresh-install finance workflow", async ({ page }) => {
     document.documentElement.style.fontSize = "";
   });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "更多", exact: true }).click();
   await page.getByRole("link", { name: /設定/ }).click();
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -384,9 +396,90 @@ test("fresh-install finance workflow", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => localStorage.getItem("simfiment.locale"))).toBe("en");
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Transactions" })).toBeVisible();
-  await page.getByRole("button", { name: "Record transaction" }).last().click();
+  await page.keyboard.press("n");
   await expect(page.getByRole("heading", { name: "Record transaction" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save expense" })).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Record transaction", includeHidden: true }),
+  ).toHaveCount(0);
   await expectAccessible(page);
+
+  // Exercise the new screens with the same authenticated installation.
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "繁體中文", exact: true }).click();
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/entry$/);
+  await expect(page.getByRole("textbox", { name: /金額/ })).toBeFocused();
+  await page.getByRole("textbox", { name: /金額/ }).fill("400");
+  await page.getByRole("button", { name: "＋ 新分類" }).click();
+  await page.getByLabel("新分類名稱").fill("E2E 預算餐飲");
+  await page.getByRole("button", { name: "建立", exact: true }).click();
+  await expect(page.getByRole("button", { name: "E2E 預算餐飲", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByLabel(/標題/).fill("E2E 預算支出");
+  await page.getByText("其他選項", { exact: true }).click();
+  const featureDate = await page.evaluate(() =>
+    new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Taipei" }).format(new Date()),
+  );
+  const featureMonth = featureDate.slice(0, 7);
+  const days = new Date(
+    Number(featureMonth.slice(0, 4)),
+    Number(featureMonth.slice(5)),
+    0,
+  ).getDate();
+  await page.getByLabel("日期與時間").fill(`${featureMonth}-01T00:00`);
+  await page.getByRole("button", { name: "儲存支出" }).click();
+  await expect(page.getByRole("textbox", { name: /金額/ })).toHaveValue("");
+  await expect(page).toHaveURL(/\/entry$/);
+  await dismissNotifications(page);
+  await page.getByRole("button", { name: "設定預算", exact: true }).click();
+  await page.getByRole("button", { name: "新增分類預算" }).click();
+  await selectOption(page, "分類", "E2E 預算餐飲");
+  await page.getByRole("textbox", { name: "每月額度" }).fill(String(days * 300));
+  await page.getByRole("button", { name: "儲存預算" }).click();
+  await expect(page.getByText("預算已儲存。", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "每日明細" }).click();
+  const firstDay = page.getByRole("row", { name: new RegExp(`${featureMonth.slice(5)}-01`) });
+  await expect(firstDay).toContainText("−¥100");
+  await expectAccessible(page);
+  await page.screenshot({ path: "test-results/budgets.png", fullPage: true });
+  await page.getByRole("button", { name: "收入", exact: true }).click();
+  await page.getByRole("textbox", { name: /金額/ }).fill("270");
+  await page.getByRole("button", { name: "薪資", exact: true }).click();
+  await page.getByLabel(/標題/).fill("E2E 待收午餐");
+  await page.getByRole("switch", { name: "追蹤借還款" }).click();
+  await page.getByLabel("對象", { exact: false }).fill("Alex");
+  await page.getByRole("button", { name: "儲存收入" }).click();
+  await expect(page.getByRole("textbox", { name: /金額/ })).toHaveValue("");
+  await dismissNotifications(page);
+  const beforeCompletion = await (
+    await page.request.get(`/api/v1/dashboards/day?date=${featureDate}`)
+  ).json();
+  await page.getByRole("link", { name: "更多", exact: true }).click();
+  await page.getByRole("link", { name: "借還款", exact: true }).click();
+  await expect(page.getByRole("link", { name: /Alex.*E2E 待收午餐/ })).toBeVisible();
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  await expect(page.getByRole("link", { name: /Alex.*E2E 待收午餐/ })).toHaveCount(0);
+  const afterCompletion = await (
+    await page.request.get(`/api/v1/dashboards/day?date=${featureDate}`)
+  ).json();
+  expect(afterCompletion.data.totals).toEqual(beforeCompletion.data.totals);
+  await page.getByRole("button", { name: "已完成", exact: true }).click();
+  await page.getByRole("link", { name: /Alex.*E2E 待收午餐/ }).click();
+  await page.getByRole("button", { name: "撤銷完成", exact: true }).click();
+  await expect(page.getByText("別人欠我 · 待完成", { exact: true })).toBeVisible();
+  await expectAccessible(page);
+  await page.goto("/entry");
+  await page.getByRole("button", { name: "E2E 預算餐飲", exact: true }).click();
+  await expect(page.getByText("今日可用", { exact: false })).toBeVisible();
+  const saveBounds = await page.getByRole("button", { name: "儲存支出" }).boundingBox();
+  const navigationBounds = await page.getByRole("navigation", { name: "主要導覽" }).boundingBox();
+  expect(saveBounds).not.toBeNull();
+  expect(navigationBounds).not.toBeNull();
+  expect(saveBounds!.y + saveBounds!.height).toBeLessThan(navigationBounds!.y);
+  await expectAccessible(page);
+  await page.screenshot({ path: "test-results/quick-entry.png", fullPage: true });
 });

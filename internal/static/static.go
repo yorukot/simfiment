@@ -74,7 +74,7 @@ func Handler() http.Handler {
 }
 
 func knownFrontendRoute(value string) bool {
-	prefixes := []string{"/setup", "/login", "/today", "/day/", "/month", "/recurring",
+	prefixes := []string{"/entry", "/budgets", "/settlements", "/more", "/setup", "/login", "/today", "/day/", "/month", "/recurring",
 		"/settings", "/transactions/"}
 	for _, prefix := range prefixes {
 		if value == prefix || strings.HasPrefix(value, prefix) {

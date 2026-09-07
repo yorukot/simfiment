@@ -37,7 +37,12 @@ export function onUnauthorized(handler: () => void) {
   };
 }
 
-async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 15_000): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 15_000,
+  withMeta = false,
+): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const mutation = !["GET", "HEAD", "OPTIONS"].includes(method);
   const controller = new AbortController();
@@ -75,7 +80,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 15_0
         "invalid_response",
         messages[currentLocale()].api.invalidResponse,
       );
-    return body.data;
+    return (withMeta ? body : body.data) as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -88,6 +93,8 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 15_0
 }
 
 export const api = {
+  getPage: <T>(path: string, signal?: AbortSignal) =>
+    request<{ data: T; meta?: { nextCursor?: string } }>(path, { signal }, 15_000, true),
   get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
   post: <I, O>(path: string, input: I) =>
     request<O>(path, { method: "POST", body: JSON.stringify(input) }),

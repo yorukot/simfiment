@@ -138,6 +138,7 @@ func (s *Store) RewriteCurrency(ctx context.Context, code string, oldExponent, n
 	}
 	targets := []target{
 		{"transactions", "amount_minor", "currency_code"},
+		{"budget_limits", "amount_minor", "currency_code"},
 		{"recurring_rules", "amount_minor", "currency_code"},
 		{"recurring_occurrences", "amount_minor_snapshot", "currency_snapshot"},
 	}

@@ -14,7 +14,7 @@ export default defineConfig({
         name: "Simfiment",
         short_name: "Simfiment",
         dir: "ltr",
-        start_url: "/today",
+        start_url: "/entry",
         scope: "/",
         display: "standalone",
         orientation: "any",

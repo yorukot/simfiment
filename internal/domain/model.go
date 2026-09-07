@@ -35,22 +35,23 @@ type Location struct {
 
 // Transaction is a confirmed income or expense record.
 type Transaction struct {
-	ID                    int64      `json:"id"`
-	ClientRequestID       string     `json:"clientRequestId,omitempty"`
-	Kind                  string     `json:"kind"`
-	AmountMinor           int64      `json:"amountMinor"`
-	CurrencyCode          string     `json:"currencyCode"`
-	Category              Category   `json:"category"`
-	Title                 string     `json:"title"`
-	OccurredAt            time.Time  `json:"occurredAt"`
-	OccurredLocalDate     string     `json:"occurredLocalDate"`
-	Source                string     `json:"source"`
-	RecurringOccurrenceID *int64     `json:"recurringOccurrenceId,omitempty"`
-	LocationStatus        string     `json:"locationStatus"`
-	Location              *Location  `json:"location,omitempty"`
-	DeletedAt             *time.Time `json:"deletedAt,omitempty"`
-	CreatedAt             time.Time  `json:"createdAt"`
-	UpdatedAt             time.Time  `json:"updatedAt"`
+	Settlement            *Settlement `json:"settlement,omitempty"`
+	ID                    int64       `json:"id"`
+	ClientRequestID       string      `json:"clientRequestId,omitempty"`
+	Kind                  string      `json:"kind"`
+	AmountMinor           int64       `json:"amountMinor"`
+	CurrencyCode          string      `json:"currencyCode"`
+	Category              Category    `json:"category"`
+	Title                 string      `json:"title"`
+	OccurredAt            time.Time   `json:"occurredAt"`
+	OccurredLocalDate     string      `json:"occurredLocalDate"`
+	Source                string      `json:"source"`
+	RecurringOccurrenceID *int64      `json:"recurringOccurrenceId,omitempty"`
+	LocationStatus        string      `json:"locationStatus"`
+	Location              *Location   `json:"location,omitempty"`
+	DeletedAt             *time.Time  `json:"deletedAt,omitempty"`
+	CreatedAt             time.Time   `json:"createdAt"`
+	UpdatedAt             time.Time   `json:"updatedAt"`
 }
 
 // Totals contains dashboard totals in minor currency units.

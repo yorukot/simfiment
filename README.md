@@ -11,6 +11,9 @@ Simfiment（Simple Financial Management）是單一使用者、行動優先的�
 - 支出／收入分類新增、重新命名、排序、封存與還原
 - Setup／Settings 可選擇整本帳幣別，支援常用 0、2、3 位小數法定貨幣與安全的歷史資料重新解讀
 - 金額＋分類即可儲存的快速交易輸入，選填標題與穩定冪等鍵
+- 每月總預算與分類預算、每日正負結餘累積、跨月沿用額度並歸零結餘
+- 借還款追蹤：建立即計入收支，完成／撤銷只更新狀態，保留歷史交易
+- 開啟 App 直接記帳，可切換支出、收入與設定預算，支援連續輸入
 - Today 與 Month 的 SQL 聚合、交易明細、編輯、軟刪除與還原
 - 設定頁可將所有未刪除交易匯出為 Excel 相容的 UTF-8 CSV
 - 非阻塞瀏覽器位置擷取、延遲附加、失敗狀態、五分鐘內重試與移除
@@ -44,6 +47,8 @@ Vite 會將 `/api` 與 `/health` 代理到 `localhost:8080`，瀏覽器仍以同
 ## 安裝成 App
 
 完成前端建置後，Simfiment 會提供 Web App Manifest、一般／maskable 圖示與 Service Worker。Android Chrome 可由瀏覽器選單選擇「安裝應用程式」，iPhone／iPad Safari 則由分享選單選擇「加入主畫面」。
+
+App 的預設啟動頁是快速記帳 `/entry`，今日總覽保留於 `/today`。Reminder 暫不提供。
 
 除 `localhost` 開發環境外，PWA 安裝與 Service Worker 需要 HTTPS。Service Worker 只預先快取應用程式殼層、樣式、程式碼與圖示；`/api` 回應不會寫入 Cache Storage。為了讓同一天再次啟動時直接呈現 Today 畫面，前端會在瀏覽器的 `localStorage` 保存一份版本化的今日摘要與交易列表快照，但不保存 CSRF、Session Cookie 或精確位置座標。快照只在日期相符且 Session 尚未到期時呈現，登入重新驗證前維持唯讀，並在登出、驗證失敗或備份還原時清除；所有讀寫仍需連回 Simfiment 伺服器。
 

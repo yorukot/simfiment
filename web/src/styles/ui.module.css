@@ -403,10 +403,18 @@
 }
 .rowMeta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+.rowSettlement {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .rowLocation {
   display: inline-grid;
@@ -1368,4 +1376,85 @@
   .sidebarAddLabel {
     display: inline;
   }
+}
+
+.entryPage {
+  display: grid;
+  gap: 24px;
+  max-width: 840px;
+  margin-inline: auto;
+}
+.entryPage .stickyAction {
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--md-sys-shape-corner-large);
+}
+@media (min-width: 600px) {
+  .entryPage .stickyAction {
+    bottom: 12px;
+  }
+}
+.budgetBalances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.budgetBalances .money {
+  font-size: 1.65rem;
+}
+.budgetStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-block: 24px;
+}
+.budgetStats dt {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.85rem;
+}
+.budgetStats dd {
+  margin: 8px 0 0;
+  font-size: 1.3rem;
+}
+.budgetEditorRow {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px;
+  padding: 16px;
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.budgetTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.budgetTable th,
+.budgetTable td {
+  padding: 12px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.budgetTable th:first-child {
+  text-align: left;
+}
+.settlementRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 20px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.settlementRow .rowMain {
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.settlementRow button {
+  justify-self: start;
 }

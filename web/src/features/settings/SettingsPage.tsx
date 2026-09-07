@@ -79,6 +79,7 @@ export function SettingsPage({ settings, meta }: { settings: Settings; meta: Met
       if (updated.currencyCode !== settings.currencyCode) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+          queryClient.invalidateQueries({ queryKey: ["budgets"] }),
           queryClient.invalidateQueries({ queryKey: ["transactions"] }),
           queryClient.invalidateQueries({ queryKey: ["transaction"] }),
           queryClient.invalidateQueries({ queryKey: ["recurring-rules"] }),

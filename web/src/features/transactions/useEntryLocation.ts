@@ -40,7 +40,7 @@ function capture(): Promise<CaptureResult> {
   });
 }
 
-export function useEntryLocation(enabled: boolean) {
+export function useEntryLocation(enabled: boolean, captureKey?: string) {
   const [status, setStatus] = useState<CaptureStatus>(enabled ? "finding" : "off");
   const [location, setLocation] = useState<EntryLocation>();
   const promiseRef = useRef<Promise<CaptureResult>>(
@@ -70,6 +70,6 @@ export function useEntryLocation(enabled: boolean) {
     return () => {
       active = false;
     };
-  }, [enabled]);
+  }, [enabled, captureKey]);
   return { status, location, capturePromise: promiseRef };
 }

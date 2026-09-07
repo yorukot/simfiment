@@ -17,7 +17,8 @@ const transactionSelect = `SELECT
 	t.title, t.occurred_at_utc_ms, t.occurred_local_date, t.occurred_timezone,
 	t.source, t.recurring_occurrence_id, t.location_status, t.deleted_at,
 	t.created_at, t.updated_at,
-	l.latitude, l.longitude, l.accuracy_m, l.captured_at
+	l.latitude, l.longitude, l.accuracy_m, l.captured_at,
+ t.settlement_counterparty, t.settlement_due_on, t.settlement_completed_at
 FROM transactions t
 JOIN categories c ON c.id = t.category_id
 LEFT JOIN transaction_locations l ON l.transaction_id = t.id`
@@ -48,14 +49,15 @@ type ExistingTransaction struct {
 
 // TransactionFilters selects normal active transaction lists.
 type TransactionFilters struct {
-	From       string
-	To         string
-	Kind       string
-	CategoryID int64
-	Query      string
-	Limit      int
-	BeforeID   int64
-	BeforeTime int64
+	SettlementStatus string
+	From             string
+	To               string
+	Kind             string
+	CategoryID       int64
+	Query            string
+	Limit            int
+	BeforeID         int64
+	BeforeTime       int64
 }
 
 // FindTransactionByRequestID looks up an idempotent request result.
@@ -120,6 +122,14 @@ func (s *Store) ListTransactions(ctx context.Context, filters TransactionFilters
 	if filters.Kind != "" {
 		query += " AND t.kind = ?"
 		args = append(args, filters.Kind)
+	}
+	if filters.SettlementStatus != "" {
+		query += " AND t.settlement_counterparty <> ''"
+		if filters.SettlementStatus == "pending" {
+			query += " AND t.settlement_completed_at IS NULL"
+		} else {
+			query += " AND t.settlement_completed_at IS NOT NULL"
+		}
 	}
 	if filters.CategoryID != 0 {
 		query += " AND t.category_id = ?"
@@ -265,15 +275,26 @@ func scanTransaction(row rowScanner) (domain.Transaction, error) {
 	var latitude, longitude, accuracy sql.NullFloat64
 	var captured sql.NullInt64
 	var occurredTimezone string
+	var counterparty, dueOn string
+	var completed sql.NullInt64
 	err := row.Scan(
 		&out.ID, &out.ClientRequestID, &out.Kind, &out.AmountMinor, &out.CurrencyCode,
 		&out.Category.ID, &out.Category.Kind, &out.Category.Name, &out.Category.IconKey,
 		&out.Category.SortOrder, &categoryArchived, &out.Title, &occurred,
 		&out.OccurredLocalDate, &occurredTimezone, &out.Source, &occurrence, &out.LocationStatus,
 		&deleted, &created, &updated, &latitude, &longitude, &accuracy, &captured,
+		&counterparty, &dueOn, &completed,
 	)
 	if err != nil {
 		return out, fmt.Errorf("scan transaction: %w", err)
+	}
+	if counterparty != "" {
+		out.Settlement = &domain.Settlement{Counterparty: counterparty, DueOn: dueOn, Status: "pending"}
+		if completed.Valid {
+			value := time.UnixMilli(completed.Int64).UTC()
+			out.Settlement.Status = "completed"
+			out.Settlement.CompletedAt = &value
+		}
 	}
 	zone, zoneErr := time.LoadLocation(occurredTimezone)
 	if zoneErr != nil {

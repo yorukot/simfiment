@@ -22,6 +22,15 @@ func TestDownloadBackupAndOnlineRestoreRoundTrip(t *testing.T) {
 	defer sourceDB.Close()
 	seedInitializedDatabase(t, sourceDB, now, "backup-password-hash")
 	insertCategoryMarker(t, sourceDB, now, "expense", "Backup marker")
+	if _, err := sourceDB.ExecContext(ctx, `INSERT INTO budget_versions(month) VALUES ('2026-08');
+ INSERT INTO budget_limits(month, amount_minor, currency_code, updated_at) VALUES ('2026-08', 9300, 'TWD', 1);
+ INSERT INTO transactions(client_request_id, request_fingerprint, kind, amount_minor, currency_code, category_id, title,
+ occurred_at_utc_ms, occurred_local_date, occurred_timezone, source, location_status, created_at, updated_at,
+ settlement_counterparty, settlement_due_on, settlement_completed_at)
+ VALUES ('backup-settlement', 'test', 'expense', 270, 'TWD', 1, 'Lunch', 1, '2026-08-01', 'Asia/Taipei', 'manual', 'none', 1, 1, 'Alex', '2026-08-10', 2)`); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := sourceDB.ExecContext(ctx, `INSERT INTO sessions(
 		token_hash, csrf_token_hash, password_version, created_at, last_seen_at, expires_at
 	) VALUES (x'01', x'02', 1, ?, ?, ?)`, now.UnixMilli(), now.UnixMilli(), now.Add(time.Hour).UnixMilli()); err != nil {
@@ -70,6 +79,15 @@ func TestDownloadBackupAndOnlineRestoreRoundTrip(t *testing.T) {
 
 	assertCategoryCount(t, destinationDB, "Backup marker", 1)
 	assertCategoryCount(t, destinationDB, "Old destination marker", 0)
+	var budget, completed int64
+	var person string
+	if err := destinationDB.QueryRowContext(ctx, "SELECT amount_minor FROM budget_limits WHERE month = '2026-08'").Scan(&budget); err != nil || budget != 9300 {
+		t.Fatalf("restored budget = %d: %v", budget, err)
+	}
+	if err := destinationDB.QueryRowContext(ctx, "SELECT settlement_counterparty, settlement_completed_at FROM transactions WHERE client_request_id = 'backup-settlement'").Scan(&person, &completed); err != nil || person != "Alex" || completed != 2 {
+		t.Fatalf("restored settlement = %s %d: %v", person, completed, err)
+	}
+
 	var passwordHash string
 	if err := destinationDB.QueryRowContext(ctx, "SELECT password_hash FROM auth_credentials WHERE id = 1").Scan(&passwordHash); err != nil {
 		t.Fatal(err)

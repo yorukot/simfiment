@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { Meta, Session } from "../api/types";
+import { EntryPage } from "../features/transactions/EntryPage";
+import { BudgetsPage } from "../features/budgets/BudgetsPage";
+import { SettlementsPage } from "../features/settlements/SettlementsPage";
 import { TodayPage } from "../features/dashboards/TodayPage";
 import { MonthPage } from "../features/dashboards/MonthPage";
 import { RecurringPage } from "../features/recurring/RecurringPage";
@@ -29,10 +32,29 @@ export function AppShell({
   bootstrap?: BootstrapState;
 }) {
   const { messages } = useI18n();
+  const location = useLocation();
   const [entryOpen, setEntryOpen] = useState(false);
   const navigation = [
+    {
+      to: "/entry",
+      label: messages.entry.record,
+      compactLabel: messages.entry.record,
+      icon: "add",
+    },
     { to: "/today", label: messages.nav.today, compactLabel: messages.nav.today, icon: "today" },
     { to: "/month", label: messages.nav.month, compactLabel: messages.nav.month, icon: "calendar" },
+    {
+      to: "/budgets",
+      label: messages.budget.title,
+      compactLabel: messages.budget.title,
+      icon: "savings",
+    },
+    {
+      to: "/settlements",
+      label: messages.settlement.title,
+      compactLabel: messages.settlement.title,
+      icon: "payments",
+    },
     {
       to: "/recurring",
       label: messages.nav.recurring,
@@ -47,7 +69,7 @@ export function AppShell({
     },
   ] satisfies Array<{ to: string; label: string; compactLabel: string; icon: IconName }>;
   useEffect(() => {
-    if (bootstrap?.readOnly) return;
+    if (bootstrap?.readOnly || location.pathname === "/entry") return;
     function keydown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const editing = target?.matches("input, textarea, select, [contenteditable='true']");
@@ -64,7 +86,7 @@ export function AppShell({
     }
     document.addEventListener("keydown", keydown);
     return () => document.removeEventListener("keydown", keydown);
-  }, [bootstrap?.readOnly]);
+  }, [bootstrap?.readOnly, location.pathname]);
   return (
     <>
       {bootstrap?.readOnly && !bootstrap.error && !bootstrap.showPending ? (
@@ -136,7 +158,34 @@ export function AppShell({
         <main className={styles.main}>
           <div className={styles.content}>
             <Routes>
-              <Route path="/" element={<Navigate to="/today" replace />} />
+              <Route path="/" element={<Navigate to="/entry" replace />} />
+              <Route
+                path="/entry"
+                element={<EntryPage settings={session.settings} readOnly={bootstrap?.readOnly} />}
+              />
+              <Route path="/budgets" element={<BudgetsPage settings={session.settings} />} />
+              <Route
+                path="/settlements"
+                element={<SettlementsPage settings={session.settings} />}
+              />
+              <Route
+                path="/more"
+                element={
+                  <>
+                    <header className={styles.pageHeader}>
+                      <h1>{messages.entry.more}</h1>
+                    </header>
+                    <nav className={styles.form} aria-label={messages.entry.more}>
+                      {navigation.slice(4).map((item) => (
+                        <Link key={item.to} className={styles.navLink} to={item.to}>
+                          <Icon name={item.icon} />
+                          {item.label}
+                        </Link>
+                      ))}
+                    </nav>
+                  </>
+                }
+              />
               <Route
                 path="/today"
                 element={
@@ -172,28 +221,20 @@ export function AppShell({
                 path="/transactions/:id"
                 element={<TransactionDetails settings={session.settings} />}
               />
-              <Route path="*" element={<Navigate to="/today" replace />} />
+              <Route path="*" element={<Navigate to="/entry" replace />} />
             </Routes>
           </div>
         </main>
         <nav className={styles.bottomNav} aria-label={messages.nav.primary}>
-          {navigation.slice(0, 2).map((item) => (
+          {navigation.slice(0, 4).map((item) => (
             <MobileLink key={item.to} {...item} />
           ))}
-          <button
-            className={styles.bottomAdd}
-            type="button"
-            aria-label={messages.nav.recordTransaction}
-            onClick={() => setEntryOpen(true)}
-          >
-            <strong>
-              <Icon name="add" />
-            </strong>
-            <span>{messages.nav.addCompact}</span>
-          </button>
-          {navigation.slice(2).map((item) => (
-            <MobileLink key={item.to} {...item} />
-          ))}
+          <MobileLink
+            to="/more"
+            label={messages.entry.more}
+            compactLabel={messages.entry.more}
+            icon="more"
+          />
         </nav>
         <TransactionEntry
           open={entryOpen}

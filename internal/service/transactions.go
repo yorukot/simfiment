@@ -30,34 +30,37 @@ type LocationInput struct {
 
 // TransactionInput contains manual quick-entry values.
 type TransactionInput struct {
-	ClientRequestID string         `json:"clientRequestId"`
-	Kind            string         `json:"kind"`
-	AmountMinor     int64          `json:"amountMinor"`
-	CategoryID      int64          `json:"categoryId"`
-	OccurredAt      time.Time      `json:"occurredAt"`
-	Title           string         `json:"title"`
-	LocationIntent  string         `json:"locationIntent"`
-	Location        *LocationInput `json:"location,omitempty"`
+	Settlement      *SettlementInput `json:"settlement,omitempty"`
+	ClientRequestID string           `json:"clientRequestId"`
+	Kind            string           `json:"kind"`
+	AmountMinor     int64            `json:"amountMinor"`
+	CategoryID      int64            `json:"categoryId"`
+	OccurredAt      time.Time        `json:"occurredAt"`
+	Title           string           `json:"title"`
+	LocationIntent  string           `json:"locationIntent"`
+	Location        *LocationInput   `json:"location,omitempty"`
 }
 
 // TransactionUpdate contains editable values; every field is required for a replacement-style patch.
 type TransactionUpdate struct {
-	Kind        string    `json:"kind"`
-	AmountMinor int64     `json:"amountMinor"`
-	CategoryID  int64     `json:"categoryId"`
-	Title       string    `json:"title"`
-	OccurredAt  time.Time `json:"occurredAt"`
+	Settlement  *SettlementInput `json:"settlement,omitempty"`
+	Kind        string           `json:"kind"`
+	AmountMinor int64            `json:"amountMinor"`
+	CategoryID  int64            `json:"categoryId"`
+	Title       string           `json:"title"`
+	OccurredAt  time.Time        `json:"occurredAt"`
 }
 
 // TransactionFilters contains supported list filters.
 type TransactionFilters struct {
-	From       string
-	To         string
-	Kind       string
-	CategoryID int64
-	Query      string
-	Limit      int
-	Cursor     string
+	SettlementStatus string
+	From             string
+	To               string
+	Kind             string
+	CategoryID       int64
+	Query            string
+	Limit            int
+	Cursor           string
 }
 
 // TransactionExportData contains active transactions and the installed currency precision.
@@ -74,6 +77,7 @@ func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput)
 	}
 	title, fields := validateTransactionBase(input.ClientRequestID, input.Kind, input.AmountMinor,
 		input.CategoryID, input.Title, input.OccurredAt, s.clock.Now(), true)
+	input.Settlement = normalizeSettlement(input.Settlement, false, fields)
 	if input.LocationIntent != "none" && input.LocationIntent != "capture" && input.LocationIntent != "skip" {
 		fields["locationIntent"] = "位置意圖必須是 none、capture 或 skip。"
 	}
@@ -100,11 +104,17 @@ func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput)
 		Location                                *normalizedLocation
 	}{input.Kind, title, input.OccurredAt.UTC().Format(time.RFC3339Nano), input.LocationIntent,
 		input.AmountMinor, input.CategoryID, locationValue}
-	fingerprint := fingerprint(normalized)
+	requestFingerprint := fingerprint(normalized)
+	if input.Settlement != nil {
+		requestFingerprint = fingerprint(struct {
+			Base       any
+			Settlement *SettlementInput
+		}{normalized, input.Settlement})
+	}
 	if validRequestID(input.ClientRequestID) {
 		existing, findErr := s.store.FindTransactionByRequestID(ctx, input.ClientRequestID)
 		if findErr == nil {
-			if existing.Fingerprint != fingerprint {
+			if existing.Fingerprint != requestFingerprint {
 				return domain.Transaction{}, domain.NewError(http.StatusConflict, "idempotency_conflict", "此請求識別碼已用於不同內容。")
 			}
 			return existing.Transaction, nil
@@ -150,7 +160,7 @@ func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput)
 		txStore := store.New(tx)
 		existing, err := txStore.FindTransactionByRequestID(ctx, input.ClientRequestID)
 		if err == nil {
-			if existing.Fingerprint != fingerprint {
+			if existing.Fingerprint != requestFingerprint {
 				return domain.NewError(http.StatusConflict, "idempotency_conflict", "此請求識別碼已用於不同內容。")
 			}
 			output = existing.Transaction
@@ -160,7 +170,7 @@ func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput)
 			return err
 		}
 		id, err := txStore.InsertTransaction(ctx, store.InsertTransaction{
-			ClientRequestID: input.ClientRequestID, RequestFingerprint: fingerprint,
+			ClientRequestID: input.ClientRequestID, RequestFingerprint: requestFingerprint,
 			Kind: input.Kind, AmountMinor: input.AmountMinor, CurrencyCode: settings.CurrencyCode,
 			CategoryID: input.CategoryID, Title: title, OccurredAtUTC: input.OccurredAt,
 			OccurredLocalDate: localDate, OccurredTimezone: settings.Timezone,
@@ -168,6 +178,11 @@ func (s *Service) CreateTransaction(ctx context.Context, input TransactionInput)
 		})
 		if err != nil {
 			return err
+		}
+		if input.Settlement != nil {
+			if err := txStore.SetSettlement(ctx, id, input.Settlement.Counterparty, input.Settlement.DueOn, now); err != nil {
+				return err
+			}
 		}
 		if input.Location != nil {
 			location := domain.Location{Latitude: input.Location.Latitude, Longitude: input.Location.Longitude,
@@ -218,6 +233,9 @@ func (s *Service) ListTransactions(ctx context.Context, filters TransactionFilte
 	if filters.From != "" && filters.To != "" && filters.From >= filters.To {
 		fields["to"] = "結束日期必須晚於起始日期。"
 	}
+	if filters.SettlementStatus != "" && filters.SettlementStatus != "pending" && filters.SettlementStatus != "completed" {
+		fields["settlementStatus"] = "借還款狀態無效。"
+	}
 	if filters.Kind != "" && !validKind(filters.Kind) {
 		fields["kind"] = "交易類型無效。"
 	}
@@ -252,7 +270,7 @@ func (s *Service) ListTransactions(ctx context.Context, filters TransactionFilte
 	now := s.clock.Now()
 	_ = s.store.ExpirePendingLocations(ctx, now.Add(-5*time.Minute), now)
 	items, err := s.store.ListTransactions(ctx, store.TransactionFilters{
-		From: filters.From, To: filters.To, Kind: filters.Kind, CategoryID: filters.CategoryID,
+		From: filters.From, To: filters.To, Kind: filters.Kind, CategoryID: filters.CategoryID, SettlementStatus: filters.SettlementStatus,
 		Query: strings.TrimSpace(filters.Query), Limit: filters.Limit + 1, BeforeID: beforeID, BeforeTime: beforeTime,
 	})
 	if err != nil {
@@ -294,6 +312,7 @@ func (s *Service) UpdateTransaction(ctx context.Context, id int64, input Transac
 	}
 	title, fields := validateTransactionBase("", input.Kind, input.AmountMinor, input.CategoryID,
 		input.Title, input.OccurredAt, s.clock.Now(), false)
+	input.Settlement = normalizeSettlement(input.Settlement, true, fields)
 	categoryKindMismatch := false
 	_, categoryErr := s.validateActiveCategory(ctx, input.CategoryID, input.Kind)
 	if categoryErr != nil {
@@ -318,8 +337,17 @@ func (s *Service) UpdateTransaction(ctx context.Context, id int64, input Transac
 		return domain.Transaction{}, internal("load transaction settings", err)
 	}
 	zone, _ := time.LoadLocation(settings.Timezone)
-	if err := s.store.UpdateTransaction(ctx, id, input.Kind, input.AmountMinor, input.CategoryID,
-		title, input.OccurredAt, input.OccurredAt.In(zone).Format("2006-01-02"), settings.Timezone, s.clock.Now()); err != nil {
+	if err := database.WithTx(ctx, s.db, nil, func(tx *sql.Tx) error {
+		st := store.New(tx)
+		if err := st.UpdateTransaction(ctx, id, input.Kind, input.AmountMinor, input.CategoryID,
+			title, input.OccurredAt, input.OccurredAt.In(zone).Format("2006-01-02"), settings.Timezone, s.clock.Now()); err != nil {
+			return err
+		}
+		if input.Settlement != nil {
+			return st.SetSettlement(ctx, id, input.Settlement.Counterparty, input.Settlement.DueOn, s.clock.Now())
+		}
+		return nil
+	}); err != nil {
 		return domain.Transaction{}, internal("update transaction", err)
 	}
 	return s.store.GetTransaction(ctx, id, true)

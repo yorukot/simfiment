@@ -49,7 +49,7 @@ export function SetupPage({ meta }: { meta: Meta }) {
       setCSRFToken(result.csrfToken);
       await queryClient.invalidateQueries({ queryKey: ["meta"] });
       await queryClient.invalidateQueries({ queryKey: ["session"] });
-      navigate("/today", { replace: true });
+      navigate("/entry", { replace: true });
     },
   });
   if (meta.initialized) return <Navigate to="/login" replace />;
@@ -131,10 +131,10 @@ export function LoginPage({ session }: { session?: Session }) {
     onSuccess: async (result) => {
       setCSRFToken(result.csrfToken);
       await queryClient.invalidateQueries({ queryKey: ["session"] });
-      navigate("/today", { replace: true });
+      navigate("/entry", { replace: true });
     },
   });
-  if (session?.authenticated) return <Navigate to="/today" replace />;
+  if (session?.authenticated) return <Navigate to="/entry" replace />;
   return (
     <main className={styles.authPage}>
       <section className={styles.authCard}>

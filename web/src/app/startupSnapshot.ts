@@ -122,6 +122,12 @@ function isCachedTransaction(value: unknown): value is CachedTransaction {
     isString(value.currencyCode) &&
     isCategory(value.category) &&
     isString(value.title) &&
+    (value.settlement === undefined ||
+      (isRecord(value.settlement) &&
+        isString(value.settlement.counterparty) &&
+        (value.settlement.status === "pending" || value.settlement.status === "completed") &&
+        (value.settlement.dueOn === undefined || isString(value.settlement.dueOn)) &&
+        (value.settlement.completedAt === undefined || isString(value.settlement.completedAt)))) &&
     isString(value.occurredAt) &&
     isString(value.occurredLocalDate) &&
     (value.source === "manual" || value.source === "recurring") &&

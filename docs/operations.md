@@ -42,3 +42,7 @@ SIMFIMENT_DEVELOPMENT=false
 ## Location privacy
 
 生產環境必須使用 HTTPS。座標只保存在 SQLite 與備份中，不會寫入 request log，也不會送往外部地圖、分析或 reverse-geocoding service。
+
+## Budget and settlement upgrade
+
+Migration `002_budgets_settlements.sql` adds monthly budget versions and transaction tracking fields. Existing transactions retain their amounts, dates and request fingerprints. The new data is included in full database backups; restoring a v1 backup upgrades it before replacement. Currency changes also reinterpret budget limits in the same transaction as existing financial data. No notification service, background worker or additional environment variables are required.

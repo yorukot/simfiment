@@ -15,13 +15,13 @@ import (
 var transactionCSVHeader = []string{
 	"id", "occurred_at", "local_date", "kind", "amount", "currency", "category", "title",
 	"source", "location_status", "latitude", "longitude", "accuracy_m", "location_captured_at",
-	"created_at", "updated_at",
+	"created_at", "updated_at", "settlement_counterparty", "settlement_due_on", "settlement_status", "settlement_completed_at",
 }
 
 func (a *API) listTransactions(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	filters := service.TransactionFilters{From: query.Get("from"), To: query.Get("to"),
-		Kind: query.Get("kind"), Query: query.Get("q"), Cursor: query.Get("cursor")}
+		Kind: query.Get("kind"), SettlementStatus: query.Get("settlementStatus"), Query: query.Get("q"), Cursor: query.Get("cursor")}
 	fields := map[string]string{}
 	if value := query.Get("categoryId"); value != "" {
 		parsed, err := strconv.ParseInt(value, 10, 64)
@@ -79,6 +79,13 @@ func (a *API) exportTransactionsCSV(w http.ResponseWriter, r *http.Request) {
 			}
 			capturedAt = item.Location.CapturedAt.UTC().Format(time.RFC3339Nano)
 		}
+		counterparty, dueOn, status, completed := "", "", "", ""
+		if item.Settlement != nil {
+			counterparty, dueOn, status = safeCSVCell(item.Settlement.Counterparty), item.Settlement.DueOn, item.Settlement.Status
+			if item.Settlement.CompletedAt != nil {
+				completed = item.Settlement.CompletedAt.UTC().Format(time.RFC3339Nano)
+			}
+		}
 		_ = writer.Write([]string{
 			strconv.FormatInt(item.ID, 10),
 			item.OccurredAt.Format(time.RFC3339Nano),
@@ -95,7 +102,7 @@ func (a *API) exportTransactionsCSV(w http.ResponseWriter, r *http.Request) {
 			accuracy,
 			capturedAt,
 			item.CreatedAt.UTC().Format(time.RFC3339Nano),
-			item.UpdatedAt.UTC().Format(time.RFC3339Nano),
+			item.UpdatedAt.UTC().Format(time.RFC3339Nano), counterparty, dueOn, status, completed,
 		})
 	}
 	writer.Flush()

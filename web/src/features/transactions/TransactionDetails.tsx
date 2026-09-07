@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, errorMessage } from "../../api/client";
+import { api, ApiError, errorMessage } from "../../api/client";
 import type { Category, Kind, Settings, Transaction } from "../../api/types";
 import { MoneyText } from "../../components/MoneyText";
 import { ErrorState, PageLoading } from "../../components/States";
@@ -19,6 +19,7 @@ import { dateTimeInputInTimezone, zonedLocalToISO } from "../../lib/date";
 import { currencySymbol, majorToMinor, minorToMajorInput, moneyInputBounds } from "../../lib/money";
 import { useI18n } from "../../i18n";
 import styles from "../../styles/ui.module.css";
+import { SettlementFields } from "../settlements/SettlementFields";
 import { OpenStreetMapLocation } from "./OpenStreetMapLocation";
 import { invalidateTransactionQueries } from "./TransactionEntry";
 
@@ -38,6 +39,9 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
   const [kind, setKind] = useState<Kind>("expense");
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState<number>();
+  const [settlementEnabled, setSettlementEnabled] = useState(false);
+  const [counterparty, setCounterparty] = useState("");
+  const [dueOn, setDueOn] = useState("");
   const [title, setTitle] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
   const categories = useQuery({
@@ -52,6 +56,9 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
     setAmount(minorToMajorInput(transaction.data.amountMinor, settings.currencyExponent));
     setCategoryId(transaction.data.category.id);
     setTitle(transaction.data.title);
+    setSettlementEnabled(Boolean(transaction.data.settlement));
+    setCounterparty(transaction.data.settlement?.counterparty ?? "");
+    setDueOn(transaction.data.settlement?.dueOn ?? "");
     setOccurredAt(dateTimeInputInTimezone(new Date(transaction.data.occurredAt), timezone));
   }, [settings.currencyExponent, timezone, transaction.data]);
   const edit = useMutation({
@@ -62,12 +69,27 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
         categoryId,
         title,
         occurredAt: zonedLocalToISO(occurredAt, timezone),
+        settlement: {
+          counterparty: settlementEnabled ? counterparty : "",
+          dueOn: settlementEnabled ? dueOn : "",
+        },
       }),
     onSuccess: async (item: unknown) => {
       queryClient.setQueryData(["transaction", id], item);
       await invalidateTransactionQueries(queryClient);
       setEditing(false);
       showToast({ message: messages.transactionDetails.updated });
+    },
+  });
+  const complete = useMutation({
+    mutationFn: () =>
+      api.post<Record<string, never>, Transaction>(
+        `/api/v1/transactions/${id}/${transaction.data?.settlement?.status === "pending" ? "complete" : "reopen"}`,
+        {},
+      ),
+    onSuccess: async (item) => {
+      queryClient.setQueryData(["transaction", id], item);
+      await invalidateTransactionQueries(queryClient);
     },
   });
   const remove = useMutation({
@@ -264,6 +286,16 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
               onChange={(event) => setOccurredAt(event.target.value)}
               required
             />
+            <SettlementFields
+              enabled={settlementEnabled}
+              onEnabled={setSettlementEnabled}
+              counterparty={counterparty}
+              onCounterparty={setCounterparty}
+              dueOn={dueOn}
+              onDueOn={setDueOn}
+              kind={kind}
+              errors={edit.error instanceof ApiError ? edit.error.fields : {}}
+            />
             {edit.error ? <p className={styles.formError}>{errorMessage(edit.error)}</p> : null}
             <div className={styles.actions}>
               <Button
@@ -291,6 +323,28 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
                 kind={item.kind}
               />
             </dd>
+            {item.settlement && (
+              <>
+                <dt>{messages.settlement.counterparty}</dt>
+                <dd>{item.settlement.counterparty}</dd>
+                <dt>{messages.settlement.status}</dt>
+                <dd>
+                  {item.kind === "income"
+                    ? messages.settlement.receivable
+                    : messages.settlement.payable}{" "}
+                  ·{" "}
+                  {item.settlement.status === "pending"
+                    ? messages.settlement.pending
+                    : messages.settlement.completed}
+                </dd>
+                {item.settlement.dueOn && (
+                  <>
+                    <dt>{messages.settlement.dueOn}</dt>
+                    <dd>{item.settlement.dueOn}</dd>
+                  </>
+                )}
+              </>
+            )}
             <dt>{messages.common.category}</dt>
             <dd>
               {item.category.name}
@@ -331,6 +385,11 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
           {item.location ? <OpenStreetMapLocation location={item.location} /> : null}
         </Card>
       )}
+      {complete.error && (
+        <p className={styles.formError} role="alert">
+          {errorMessage(complete.error)}
+        </p>
+      )}
       {!editing ? (
         <section className={styles.section}>
           <div className={styles.actions}>
@@ -340,6 +399,17 @@ export function TransactionDetails({ settings }: { settings: Settings }) {
                   <Icon name="edit" size={19} />
                   {messages.transactionDetails.edit}
                 </Button>
+                {item.settlement && (
+                  <Button
+                    variant="outlined"
+                    loading={complete.isPending}
+                    onClick={() => complete.mutate()}
+                  >
+                    {item.settlement.status === "pending"
+                      ? messages.settlement.complete
+                      : messages.settlement.reopen}
+                  </Button>
+                )}
                 {item.location ? (
                   <Button
                     variant="text"

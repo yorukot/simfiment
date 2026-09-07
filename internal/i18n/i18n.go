@@ -96,25 +96,31 @@ type CategorySeed struct {
 func DefaultCategories(locale Locale) (expense, income []CategorySeed) {
 	if locale == English {
 		return []CategorySeed{
-				{"Food", "food"}, {"Transport", "transport"}, {"Shopping", "shopping"},
-				{"Home", "home"}, {"Entertainment", "entertainment"}, {"Health", "health"},
-				{"Education", "education"}, {"Subscriptions", "subscription"}, {"Other", "other"},
-			}, []CategorySeed{
-				{"Salary", "salary"}, {"Bonus", "bonus"}, {"Freelance", "freelance"},
-				{"Interest", "interest"}, {"Refund", "refund"}, {"Other", "other"},
-			}
+			{"Food", "food"}, {"Transport", "transport"}, {"Shopping", "shopping"},
+			{"Home", "home"}, {"Entertainment", "entertainment"}, {"Health", "health"},
+			{"Education", "education"}, {"Subscriptions", "subscription"}, {"Other", "other"},
+		}, []CategorySeed{
+			{"Salary", "salary"}, {"Bonus", "bonus"}, {"Freelance", "freelance"},
+			{"Interest", "interest"}, {"Refund", "refund"}, {"Other", "other"},
+		}
 	}
 	return []CategorySeed{
-			{"飲食", "food"}, {"交通", "transport"}, {"購物", "shopping"}, {"居家", "home"},
-			{"娛樂", "entertainment"}, {"健康", "health"}, {"教育", "education"},
-			{"訂閱", "subscription"}, {"其他", "other"},
-		}, []CategorySeed{
-			{"薪資", "salary"}, {"獎金", "bonus"}, {"接案", "freelance"},
-			{"利息", "interest"}, {"退款", "refund"}, {"其他", "other"},
-		}
+		{"飲食", "food"}, {"交通", "transport"}, {"購物", "shopping"}, {"居家", "home"},
+		{"娛樂", "entertainment"}, {"健康", "health"}, {"教育", "education"},
+		{"訂閱", "subscription"}, {"其他", "other"},
+	}, []CategorySeed{
+		{"薪資", "salary"}, {"獎金", "bonus"}, {"接案", "freelance"},
+		{"利息", "interest"}, {"退款", "refund"}, {"其他", "other"},
+	}
 }
 
 var english = map[string]string{
+	"請提供預算清單，最多 201 筆。":                  "Provide a budget list with at most 201 items.",
+	"預算分類無效或重複。":                         "The budget category is invalid or duplicated.",
+	"預算只能使用支出分類。":                        "Budgets require expense categories.",
+	"請填寫對象，最多 80 個字元。":                   "Enter a person using at most 80 characters.",
+	"借還款狀態無效。":                           "The settlement status is invalid.",
+	"此交易無法更新借還款狀態。":                      "Tracking status cannot be changed for this transaction.",
 	"部分欄位無效。":                            "Some fields are invalid.",
 	"密碼必須是有效文字":                          "The password must contain valid text.",
 	"密碼長度必須為 12 到 128 個字元":               "The password must be between 12 and 128 characters.",

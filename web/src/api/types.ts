@@ -53,6 +53,7 @@ export type EntryLocation = {
 export type LocationStatus = "none" | "pending" | "attached" | "failed" | "skipped";
 
 export type Transaction = {
+  settlement?: Settlement;
   id: number;
   clientRequestId?: string;
   kind: Kind;
@@ -146,3 +147,27 @@ export type RecurringPreview = {
 };
 
 export type FieldErrors = Record<string, string>;
+
+export type SettlementInput = { counterparty: string; dueOn?: string };
+export type Settlement = SettlementInput & {
+  status: "pending" | "completed";
+  completedAt?: string;
+};
+export type BudgetLimit = { categoryId: number; amountMinor: number };
+export type BudgetDay = {
+  date: string;
+  allocationMinor: number;
+  expenseMinor: number;
+  availableMinor: number;
+};
+export type BudgetSummary = BudgetLimit & {
+  expenseMinor: number;
+  remainingMinor: number;
+  days: BudgetDay[];
+};
+export type MonthlyBudgets = {
+  month: string;
+  effectiveMonth?: string;
+  currencyCode: string;
+  items: BudgetSummary[];
+};

@@ -132,7 +132,7 @@ export function App() {
   };
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/today" replace />} />
+      <Route path="/login" element={<Navigate to="/entry" replace />} />
       <Route
         path="/*"
         element={

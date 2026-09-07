@@ -130,7 +130,7 @@ The following decisions are confirmed for the MVP.
 | CSV import/export | Not included in MVP |
 | Multi-user support | Not included |
 | Multiple accounts | Not included |
-| Budgets | Not included |
+| Budgets | Monthly total/category caps with daily carry; see docs/api.md |
 | Mixed currencies within one ledger | Not included |
 | Bank integration | Not included |
 | OCR or receipt scanning | Not included |
@@ -212,7 +212,6 @@ The MVP must not attempt to implement:
 - Invoice generation
 - Investment tracking
 - Asset valuation
-- Debt management
 - Currency conversion
 - Location history maps
 - Automatic place-name lookup
@@ -4554,9 +4553,7 @@ Do not implement these unless a later approved milestone adds them:
 - Transfers
 - Balances
 - Credit cards
-- Budgets
 - Savings goals
-- Debt
 - Assets
 - Investments
 - Currency conversion
@@ -4761,3 +4758,9 @@ Do not begin advanced monthly visualization or recurring-rule UI until this slic
 The core product rule remains:
 
 > **Amount, category, save. Title is optional. Location is automatic when possible and never blocks the transaction.**
+
+## Budget, settlement and entry extension
+
+The application now starts at `/entry`, offering expense, income and budget entry. `/today` remains the daily report. Monthly total and category budgets allocate integer minor units across calendar days; unused and negative balances carry within the month only. Settings persist by effective month. Income does not replenish spending allowances.
+
+Settlements are metadata on already-counted transactions. Income means owed to the user; expense means owed by the user. Completing or reopening a settlement only changes tracking state, preserving the original transaction and accounting date. Partial repayment and reminders are outside this extension. See `docs/api.md` for contracts and `docs/operations.md` for migration behavior.

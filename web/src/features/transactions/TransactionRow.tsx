@@ -32,6 +32,16 @@ export function TransactionRow({
           <span>
             {transaction.title ? transaction.category.name : messages.common.transaction} · {time}
           </span>
+          {transaction.settlement && (
+            <span className={styles.rowSettlement}>
+              {transaction.settlement.counterparty} ·{" "}
+              {transaction.settlement.status === "completed"
+                ? messages.settlement.completed
+                : transaction.kind === "income"
+                  ? messages.settlement.receivable
+                  : messages.settlement.payable}
+            </span>
+          )}
           {transaction.locationStatus === "attached" ? (
             <span
               className={styles.rowLocation}
